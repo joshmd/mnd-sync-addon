@@ -27,6 +27,10 @@ BASE_URL = "https://www.mynetdiary.com"
 _DEFAULT_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:159.0) Gecko/20100101 Firefox/159.0"
 
 
+# Diary time per meal type for entries logged on other days.
+_MEAL_TIMES = {1: "08:00", 2: "12:30", 3: "19:00", 4: "15:00"}
+
+
 def today_iso() -> str:
     return _dt.date.today().isoformat()
 
@@ -155,11 +159,12 @@ class MndClient:
         """GET /muiGetMeals.do — a day's meals, each with foodEntries[].
 
         Used to read back a logged entry (to find its entryNo) and to confirm
-        which meal an entry landed in. ``day`` defaults to the session's day.
+        which meal an entry landed in. ``day`` (YYYY-MM-DD) also switches the
+        session's diary day; it defaults to the session's current day.
         """
         params: dict[str, Any] = {"testMode": "false"}
         if day:
-            params["day"] = day
+            params["date"] = day
         return self._request("GET", "muiGetMeals.do", params=params)
 
     @staticmethod
@@ -168,8 +173,8 @@ class MndClient:
 
         The response carries it as foodEntry.entryNo (and sometimes a top-level
         entryNo). This is the reliable way to learn a new entry's id — far more
-        so than re-reading the day, since muiGetMeals.do ignores a day parameter
-        and a stored entry's foodId differs from the search token used to log it.
+        so than re-reading the day, since a stored entry's foodId differs from
+        the search token used to log it.
         """
         if not isinstance(resp, dict):
             return None
@@ -181,8 +186,7 @@ class MndClient:
     def iter_day_entries(self, day: Optional[str] = None):
         """Yield (meal_type_id, meal_name, entryNo, food_name) for a day.
 
-        Note: muiGetMeals.do returns the session's current day regardless of the
-        ``day`` argument, so this reflects whatever day the session is on.
+        ``day`` switches the session's diary day; omit it for the current day.
         """
         data = self.get_meals(day)
         for meal in (data.get("meals", []) if isinstance(data, dict) else []):
@@ -191,6 +195,16 @@ class MndClient:
             for fe in meal.get("foodEntries", []):
                 yield (mtid, mname, fe.get("entryNo"),
                        fe.get("foodName") or fe.get("foodDesc"))
+
+    @staticmethod
+    def entries_of(payload: dict) -> dict[int, Optional[str]]:
+        """Map entryNo -> food name over a muiGetMeals.do-style payload."""
+        return {fe.get("entryNo"): fe.get("foodName") or fe.get("foodDesc")
+                for meal in payload.get("meals", [])
+                for fe in meal.get("foodEntries", [])}
+
+    def day_entries(self, day: str) -> dict[int, Optional[str]]:
+        return self.entries_of(self.get_meals(day))
 
     # ----- writes (dry-run aware) ----------------------------------------
 
@@ -216,6 +230,28 @@ class MndClient:
             body["entryNo"] = entry_no
             body["initialDay"] = day or today_iso()
         return self._maybe_send("POST", "muiSaveFoodEntry.do", body, dry_run)
+
+    def log_on_day(self, food_id: str, day: str, meal_type_id: int, amount: str,
+                   *, dry_run: Optional[bool] = None) -> Any:
+        """Log a food on any day: switch the session to ``day``, then full-form save.
+
+        Returns (entryNo, food name), or the request body when dry-run.
+        """
+        self.get_meals(day)  # the save lands on the session's current day
+        hhmm = _MEAL_TIMES[meal_type_id]
+        h, m = hhmm.split(":")
+        body = {"foodId": food_id, "day": day, "timeMinutes": int(h) * 60 + int(m),
+                "mealTypeId": meal_type_id, "timeString": hhmm,
+                "amountInputString": amount, "searchToken": ""}
+        result = self._maybe_send("POST", "muiSaveFoodEntry.do", body, dry_run)
+        if self._is_dry(dry_run):
+            return body
+        _raise_if_error("muiSaveFoodEntry.do", result)
+        entry_no = self.entry_no_from_response(result)
+        if entry_no is None:
+            raise MndRequestError("muiSaveFoodEntry.do returned no entryNo",
+                                  endpoint="muiSaveFoodEntry.do", payload=str(result)[:500])
+        return entry_no, self.entries_of(result).get(entry_no)
 
     def log_food_inline(self, food_id: str, meal_type_id: int, amount: str,
                         *, search_token: str = "", dry_run: Optional[bool] = None) -> Any:
@@ -246,6 +282,41 @@ class MndClient:
             raise MndRequestError("muiSaveRecipe.do returned no foodId",
                                   endpoint="muiSaveRecipe.do", payload=str(result)[:500])
         return saved
+
+    def update_recipe(self, food_id: str, recipe: Recipe, *,
+                      dry_run: Optional[bool] = None) -> Any:
+        """Update a saved recipe in place: load it, swap name/foods/serving, save.
+
+        Returns a SavedFood (its food_id may differ if MND forked the recipe),
+        or the request body when dry-run.
+        """
+        loaded = self._request("GET", "muiLoadRecipe.do", params={"recipeId": food_id})
+        old = loaded["recipe"]
+        new = recipe.to_payload()["recipe"]
+        for key in ("name", "foods", "serving"):
+            if key in new:
+                old[key] = new[key]
+        old["foodId"] = int(food_id)
+        body = {"recipe": old, "sortOrder": "a"}
+        result = self._maybe_send("POST", "muiSaveRecipe.do", body, dry_run)
+        if self._is_dry(dry_run):
+            return result
+        _raise_if_error("muiSaveRecipe.do", result)
+        saved = SavedFood.from_save_response(result)
+        if not saved.food_id:
+            raise MndRequestError("muiSaveRecipe.do returned no foodId",
+                                  endpoint="muiSaveRecipe.do", payload=str(result)[:500])
+        return saved
+
+    def retire_food(self, food_id: str, *, dry_run: Optional[bool] = None) -> Any:
+        """GET /muiRetireMyFood.do?foodId=<id> — remove a saved food from the lists."""
+        if self._is_dry(dry_run):
+            return {"_dry_run": True, "method": "GET", "endpoint": "muiRetireMyFood.do",
+                    "params": {"foodId": food_id}}
+        data = self._request("GET", "muiRetireMyFood.do", params={"foodId": food_id})
+        if not (isinstance(data, dict) and data.get("success") is True):
+            raise MndRequestError("muiRetireMyFood.do did not report success",
+                                  endpoint="muiRetireMyFood.do", payload=str(data)[:500])
 
     def save_custom_food(self, custom_food: dict[str, Any], *,
                          dry_run: Optional[bool] = None) -> Any:

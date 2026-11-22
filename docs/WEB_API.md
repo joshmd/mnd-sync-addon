@@ -118,5 +118,16 @@ session is accepted by the web `mui*.do` endpoints.
 **Decision:** the add-on uses `password` mode (mobile login). The pasted-cookie
 mode remains as a fallback.
 
-Pending capture (needed for plan part 2 only): recipe update/delete, and
-logging a food to a non-current day.
+## Part 2 endpoints (captured 2026-11-22)
+
+- `GET muiGetMeals.do?date=YYYY-MM-DD` — switches the session's diary day.
+  Response `meals[]` (`mealTypeId`, `foodEntries[]` with `entryNo`, `foodName`/`foodDesc`).
+- `POST muiSaveFoodEntry.do` (full form, other day) — body `foodId`, `day`,
+  `timeMinutes`, `mealTypeId`, `timeString`, `amountInputString`, `searchToken`.
+  Response: `entryNo` plus the meals payload.
+- `GET muiLoadRecipe.do?recipeId=<foodId>` — `{"recipe": {...}}` (`foodId`, `name`,
+  `foods`, `serving`, `entriesNum`, ...).
+- `POST muiSaveRecipe.do` `{"recipe": {..., "foodId": <int>}, "sortOrder": "a"}` —
+  updates in place. Response `foodId` (string) and `recipeMyFood`.
+- `GET muiRetireMyFood.do?foodId=<id>` — response `{"success": true}`.
+- `POST muiDeleteFoodEntry.do` `{day, entryNo}` — deletes a diary entry.
