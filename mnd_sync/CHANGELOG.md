@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Recipes: the last *Refresh from Mealie* result (new, linked, changed…) stays on the page, so it isn't lost when a long refresh finishes after you have moved on. While a refresh runs, the page says so.
+
 ## 0.2.1
 
 - Settings: *Test Mealie* and *Test MyNetDiary* now say when nothing is saved yet (press Save first), and the reason for a failed test is written to the add-on log.

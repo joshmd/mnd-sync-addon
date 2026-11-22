@@ -112,7 +112,8 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
         status = status if status in _STATUSES else ""
         return templates.TemplateResponse(request, "recipes.html", {
             "recipes": store.list_recipes(status or None), "msg": msg, "busy": svc.busy,
-            "last_run": store.last_run(), "statuses": _STATUSES, "status": status})
+            "last_run": store.last_run(), "last_refresh": store.get_setting("last_refresh"),
+            "statuses": _STATUSES, "status": status})
 
     @app.get("/recipes/{slug}")
     def recipe(request: Request, slug: str, msg: str = ""):
@@ -134,7 +135,10 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
         def ok(c):
             linked = "0 linked \u2014 check before turning on auto-sync" if c.get("check_links") else f"{c.get('linked', 0)} linked"
             rest = [f"{n} {k}" for k, n in c.items() if k not in ("new", "linked", "check_links") and n]
-            return "Refreshed: " + ", ".join([f"{c.get('new', 0)} new", linked] + rest)
+            msg = "Refreshed: " + ", ".join([f"{c.get('new', 0)} new", linked] + rest)
+            # a refresh takes minutes: keep the result for the page, in case the browser moved on
+            store.set_setting("last_refresh", f"{datetime.now():%Y-%m-%d %H:%M} {msg}")
+            return msg
         return run(request, "/", svc.refresh, ok)
 
     @app.post("/recipes/{slug}/forget")

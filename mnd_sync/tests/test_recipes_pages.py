@@ -128,6 +128,14 @@ def test_refresh_message_shows_linked_and_first_run_warning(tmp_path):
     assert "5 new, 0 linked — check before turning on auto-sync" in t
 
 
+def test_last_refresh_result_stays_on_the_page(tmp_path):
+    c, svc = make(tmp_path)
+    svc.refresh = lambda: {"new": 0, "linked": 33, "check_links": False}
+    c.post("/refresh", follow_redirects=False)  # the browser never follows: user clicked away
+    t = c.get("/recipes").text
+    assert "Last refresh" in t and "0 new, 33 linked" in t
+
+
 def test_sync_all_ready_only_from_its_own_button(tmp_path):
     c, svc = make(tmp_path)
     page = c.get("/", headers=HEADERS).text
