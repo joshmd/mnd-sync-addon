@@ -27,7 +27,15 @@ class Notes:
 class FakeService:
     def __init__(self, store, refresh_error=None):
         self.store, self.refresh_error = store, refresh_error
-        self.refreshes, self.syncs = 0, []
+        self.refreshes, self.syncs, self.plans = 0, [], []
+        self.plan_error = None
+        self.plan_result = {"logged": 2, "moved": 0, "removed": 0, "waiting": 0, "user_removed": 0, "failed": 0}
+
+    def log_meal_plan(self, today):
+        self.plans.append(today)
+        if self.plan_error:
+            raise self.plan_error
+        return dict(self.plan_result)
 
     def refresh(self):
         self.refreshes += 1
@@ -208,3 +216,34 @@ def test_saved_notification_grammar(store):
     notes = Notes()
     tick(FakeService(store), store, notes, NOW)
     assert any("2 new recipes synced" in m for _, m in notes.sent)
+
+
+def test_plan_runs_only_when_on(store):
+    store.set_setting("auto_sync", "off")
+    store.set_setting("log_meal_plan", "on")
+    svc, notes = FakeService(store), Notes()
+    stop = threading.Event()
+    run_forever(svc, store, notes, stop=stop, wait=lambda m: stop.set())
+    assert len(svc.plans) == 1 and svc.refreshes == 0
+
+
+def test_plan_notifies_count_once(store):
+    svc, notes = FakeService(store), Notes()
+    out = tick(svc, store, notes, NOW, recipes=False, plan=True)
+    assert out["planned"] == 2 and svc.refreshes == 0
+    assert [m for _, m in notes.sent] == ["2 planned meals added to the MyNetDiary diary"]
+
+
+def test_plan_waiting_notifies(store):
+    svc, notes = FakeService(store), Notes()
+    svc.plan_result = {**svc.plan_result, "logged": 0, "waiting": 1}
+    tick(svc, store, notes, NOW, recipes=False, plan=True)
+    assert [m for _, m in notes.sent] == ["1 planned meal wait for their recipe to sync: see Review"]
+
+
+def test_plan_outage_notifies_once(store):
+    svc, notes = FakeService(store), Notes()
+    svc.plan_error = MealieError("http://leak")
+    tick(svc, store, notes, NOW, recipes=False, plan=True)
+    tick(svc, store, notes, NOW, recipes=False, plan=True)
+    assert len(notes.sent) == 1 and "Mealie unreachable" in notes.sent[0][1]

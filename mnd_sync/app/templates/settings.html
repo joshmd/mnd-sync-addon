@@ -23,6 +23,9 @@
     <em>Turn this on after the first Refresh shows your existing recipes as saved.</em></p>
   <p><label>Check Mealie every <input name="poll_minutes" value="{{ poll_minutes }}" inputmode="numeric" size="4" required> minutes</label></p>
   <p><label>Save a recipe once it has not changed for <input name="quiet_minutes" value="{{ quiet_minutes }}" inputmode="numeric" size="4" required> minutes</label></p>
+  <h2>Meal plan</h2>
+  <p><label><input type="checkbox" name="log_meal_plan" {% if log_meal_plan %}checked{% endif %}> Log meal plan to diary</label>
+    <em>Adds the next 14 days of your Mealie meal plan to the MyNetDiary diary as 1 serving each. Entries you delete in MyNetDiary are not added again.</em></p>
   <h2>Notifications</h2>
   <p><label>Phone notification service (optional, the part after notify.)
     <input name="notify_service" value="{{ notify_service }}" placeholder="mobile_app_my_phone" size="30">

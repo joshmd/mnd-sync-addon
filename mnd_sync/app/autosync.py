@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from mynetdiary.errors import MndAuthError
 
@@ -31,12 +31,16 @@ def _outage(store, notifier, key: str, message: str) -> dict:
     return {"error": key}
 
 
-def tick(service, store, notifier, now: datetime) -> dict:
+def tick(service, store, notifier, now: datetime, *, recipes: bool = True, plan: bool = False) -> dict:
+    saved, planned = [], {}
     try:
-        service.refresh()
-        due = [r["slug"] for r in store.list_recipes("ready")
-               if should_autosave(r, now, store.get_setting("quiet_minutes"))]
-        saved = service.sync(due, force=False, trigger="auto")["saved"] if due else []
+        if recipes:
+            service.refresh()
+            due = [r["slug"] for r in store.list_recipes("ready")
+                   if should_autosave(r, now, store.get_setting("quiet_minutes"))]
+            saved = service.sync(due, force=False, trigger="auto")["saved"] if due else []
+        if plan:  # after the recipes, so entries whose recipe just synced are logged in the same tick
+            planned = service.log_meal_plan(date.today())  # local date: HA gives add-ons TZ
     except SyncBusy:
         return {"error": "busy"}
     except MndAuthError:
@@ -47,6 +51,15 @@ def tick(service, store, notifier, now: datetime) -> dict:
         log.warning("auto-sync failed (%s)", describe(e))
         return _outage(store, notifier, kind, OUTAGES[kind])
     store.set_setting("last_outage", None)
+    result = {"saved": len(saved)}
+    if plan:
+        result["planned"] = planned["logged"]
+        if planned["logged"]:
+            notifier.send(TITLE, f"{_plural(planned['logged'], 'planned meal')} added to the MyNetDiary diary")
+        if planned["waiting"]:
+            notifier.send(TITLE, f"{_plural(planned['waiting'], 'planned meal')} wait for their recipe to sync: see Review")
+    if not recipes:
+        return result
 
     rows = {r["slug"]: r for r in store.list_recipes()}
     if saved:
@@ -61,7 +74,7 @@ def tick(service, store, notifier, now: datetime) -> dict:
     for r in rows.values():  # back to normal: forget, so a later return to review notifies again
         if r["notified"] and r["status"] not in ("review", "error"):
             store.set_notified(r["slug"], None)
-    return {"saved": len(saved)}
+    return result
 
 
 def run_forever(service, store, notifier, stop=None, wait=None) -> None:
@@ -70,8 +83,9 @@ def run_forever(service, store, notifier, stop=None, wait=None) -> None:
     while not stop.is_set():
         minutes = 1  # a failed iteration retries soon
         try:
-            if store.get_setting("auto_sync") == "on":
-                tick(service, store, notifier, datetime.now(timezone.utc))
+            recipes, plan = store.get_setting("auto_sync") == "on", store.get_setting("log_meal_plan") == "on"
+            if recipes or plan:
+                tick(service, store, notifier, datetime.now(timezone.utc), recipes=recipes, plan=plan)
             minutes = max(1, store.get_setting("poll_minutes"))
         except Exception as e:  # noqa: BLE001  # the loop must never die
             log.warning("auto-sync iteration failed (%s)", type(e).__name__)

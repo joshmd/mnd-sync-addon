@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Meal plan</h1>
+{% if msg %}<p role="status"><strong>{{ msg }}</strong></p>{% endif %}
+<form method="post" action="{{ url(request, '/mealplan/run') }}"><button>Log meal plan now</button></form>
+{% if rows %}
+<table>
+  <tr><th>Date</th><th>Meal</th><th>Mealie</th><th>MyNetDiary</th></tr>
+  {% for r in rows %}
+  <tr><td>{{ r.date }}</td><td>{{ meals[r.meal] }}</td><td>{{ r.title }}</td>
+    <td>{{ states.get(r.state, r.state) }}
+      {% if r.state == "waiting" and r.slug in known %}(<a href="{{ url(request, '/recipes/' ~ r.slug | urlencode) }}">recipe</a>){% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<p>Nothing planned yet.</p>{% endif %}
+{% endblock %}

@@ -32,4 +32,14 @@
   </form>
 </section>
 {% else %}<p>Nothing to review.</p>{% endfor %}
+{% if waiting %}
+<section>
+  <h2>Planned but not in MyNetDiary</h2>
+  <ul>
+    {% for w in waiting %}
+    <li>{{ w.date }}, {{ meals[w.meal] }}: {{ w.title }} (<a href="{{ url(request, '/recipes/' ~ w.slug | urlencode) }}">recipe</a>)</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endblock %}

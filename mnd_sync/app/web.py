@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -17,7 +17,7 @@ from .notify import Notifier, valid_service
 from .connections import Connections
 from .credentials import CredentialStore
 from .service import SyncBusy, SyncService, describe, error_kind, log
-from .store import Store
+from .store import (PLAN_FAILED, PLAN_LOGGED, PLAN_NOTE, PLAN_USER_REMOVED, PLAN_WAITING, Store)
 from sync.aliases import normalize_key
 from sync.amounts import grams_of, number
 from sync.serialize import result_from_json
@@ -44,6 +44,9 @@ templates.env.filters["fromjson"] = json.loads
 
 _FAILED = {"mealie": "Sync failed: Mealie unreachable", "mnd": "Sync failed: MyNetDiary unreachable",
            "error": "Sync failed \u2014 see the add-on log"}
+_MEALS = {1: "Breakfast", 2: "Lunch", 3: "Dinner", 4: "Snacks"}
+_PLAN_STATES = {PLAN_LOGGED: "in diary", PLAN_WAITING: "waiting for recipe to sync", PLAN_NOTE: "note only, not logged",
+                PLAN_FAILED: "failed, will retry", PLAN_USER_REMOVED: "removed by you"}
 _STATUSES = ("ready", "review", "saved", "changed", "error", "duplicate", "empty", "removed")
 _SECRETS = ("mealie_token", "mnd_email", "mnd_password", "mnd_jsessionid")
 
@@ -72,6 +75,7 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
             "mealie_url": store.get_setting("mealie_url"),
             "notify_service": store.get_setting("notify_service") or "", "message": message,
             "saved": {n: creds.has(n) for n in _SECRETS}, "auto_sync": store.get_setting("auto_sync") == "on",
+            "log_meal_plan": store.get_setting("log_meal_plan") == "on",
             "poll_minutes": store.get_setting("poll_minutes"), "quiet_minutes": store.get_setting("quiet_minutes"),
             "mealie_ok": store.get_setting("mealie_ok"), "mnd_ok": store.get_setting("mnd_ok")})
 
@@ -202,7 +206,24 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
                 if r["needs_review"]:
                     g = groups.setdefault(normalize_key(r["query"]), {"name": r["query"], "items": []})
                     g["items"].append((row, r))
-        return templates.TemplateResponse(request, "review.html", {"groups": list(groups.values()), "msg": msg})
+        waiting = [r for r in store.list_plan_entries(date.today().isoformat()) if r["state"] == PLAN_WAITING]
+        return templates.TemplateResponse(request, "review.html", {
+            "groups": list(groups.values()), "msg": msg, "waiting": waiting, "meals": _MEALS})
+
+    @app.get("/mealplan")
+    def mealplan(request: Request, msg: str = ""):
+        rows = store.list_plan_entries(date.today().isoformat())
+        return templates.TemplateResponse(request, "mealplan.html", {
+            "rows": rows, "msg": msg, "meals": _MEALS, "states": _PLAN_STATES,
+            "known": {r["slug"] for r in rows if store.get_recipe(r["slug"])}})
+
+    @app.post("/mealplan/run")
+    def mealplan_run(request: Request):
+        def ok(c):
+            parts = [f"{c[k]} {w}" for k, w in (("logged", "added"), ("moved", "moved"), ("removed", "removed"),
+                                                ("waiting", "waiting")) if c[k]]
+            return "Meal plan: " + (", ".join(parts) or "nothing to do")
+        return run(request, "/mealplan", lambda: svc.log_meal_plan(date.today()), ok)
 
     @app.post("/resolve")
     def resolve(request: Request, ingredient: str = Form(""), slug: str = Form(""), scope: str = Form(""),
@@ -320,6 +341,7 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
                       mealie_password: str = Form(""), mealie_token: str = Form(""),
                       mnd_email: str = Form(""), mnd_password: str = Form(""), mnd_jsessionid: str = Form(""),
                       notify_service: str = Form(""), auto_sync: str = Form(""),
+                      log_meal_plan: str = Form(""),
                       poll_minutes: str | None = Form(None), quiet_minutes: str | None = Form(None)):
         notify_service = notify_service.strip()
         if notify_service and not valid_service(notify_service):
@@ -337,6 +359,7 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
         store.set_setting("mealie_url", mealie_url.strip())
         store.set_setting("notify_service", notify_service)  # blank unsets
         store.set_setting("auto_sync", "on" if auto_sync else "off")
+        store.set_setting("log_meal_plan", "on" if log_meal_plan else "off")
         for k, v in minutes.items():
             store.set_setting(k, int(v))
         message = "Settings saved."
@@ -353,7 +376,8 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
 
     @app.post("/settings/run-now")
     def run_now(request: Request):
-        result = tick(svc, store, app.state.notifier, datetime.now(timezone.utc))
+        result = tick(svc, store, app.state.notifier, datetime.now(timezone.utc),
+                      recipes=True, plan=store.get_setting("log_meal_plan") == "on")
         msg = {"busy": "A sync is already running", "mnd_auth": "Sync failed: MyNetDiary login failed",
                **_FAILED}.get(result.get("error"), "Sync finished")
         return back(request, "/settings", msg)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- Meal plan: log the next 14 days of your Mealie meal plan to the MyNetDiary diary (off by default), with a Meal plan page, a *Log meal plan now* button and notifications.
+- Review lists planned meals still waiting for their recipe.
+- Recipe page: *Update in MyNetDiary* for changed recipes, *Delete in MyNetDiary too* for recipes deleted in Mealie.
+
 ## 0.1.0
 
 First release.

@@ -53,6 +53,27 @@ recipe once it has not changed for ... minutes*) on the Settings page; both
 are whole minutes, 1 or more. *Run sync now* runs the same check immediately.
 Problems are written to the add-on log (Settings, Add-ons, MyNetDiary Sync, Log).
 
+## Meal plan
+
+With *Log meal plan to diary* ticked (Settings, **off** by default), the add-on
+adds the next 14 days of your Mealie meal plan to the MyNetDiary diary, 1
+serving each. Mealie's meal types map to diary meals: breakfast to Breakfast,
+lunch to Lunch, dinner, side and brunch to Dinner, snack, dessert and drink to Snacks. Plan entries that
+are only a note are not logged. A planned recipe that has not synced yet waits
+(see the Meal plan page and Review) and is added once it syncs.
+
+Try it first: leave the setting off and press *Log meal plan now* on the Meal
+plan page for a real week, then check the diary. Only then turn it on.
+
+- An entry you delete in MyNetDiary is not added again; your deletion wins.
+- If you move or remove a plan entry in Mealie, the diary follows.
+- Past days are never touched.
+
+On a recipe's page, *Update in MyNetDiary* (for a recipe that changed in
+Mealie) saves it as a new copy and retires the old one; days already in your
+diary keep the old version. *Delete in MyNetDiary too* removes a recipe you
+deleted in Mealie.
+
 ## Privacy
 
 Credentials stay in the add-on's private storage. Home Assistant backups
