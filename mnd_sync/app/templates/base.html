@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>MyNetDiary Sync</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { margin: 0 auto; max-width: 60rem; padding: 1rem; }
+  nav a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="{{ url(request, '/') }}">Home</a>
+  <a href="{{ url(request, '/recipes') }}">Recipes</a>
+  <a href="{{ url(request, '/review') }}">Review</a>
+  <a href="{{ url(request, '/aliases') }}">Aliases</a>
+  <a href="{{ url(request, '/settings') }}">Settings</a>
+</nav>
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

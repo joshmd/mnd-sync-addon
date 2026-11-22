@@ -1,0 +1,7 @@
+requests>=2.31
+fastapi
+uvicorn
+jinja2
+python-multipart
+pyyaml
+httpx

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% macro form(a, slug="") %}
+<form method="post" action="{{ url(request, '/aliases') }}">
+  {% if slug %}<input type="hidden" name="slug" value="{{ slug }}">{% endif %}
+  <label>Ingredient <input name="name" value="{{ a.name }}" required></label>
+  <label>Food id <input name="food_id" value="{{ a.food_id }}"></label>
+  <label>Description <input name="description" value="{{ a.description }}"></label>
+  <label>Amount <input name="amount" value="{{ a.amount or '' }}" placeholder="e.g. 150 g"></label>
+  <label><input type="checkbox" name="exclude" {% if a.exclude %}checked{% endif %}> Leave out</label>
+  <button>Save</button>
+</form>
+{% endmacro %}
+{% macro delete(a, slug="") %}
+<form method="post" action="{{ url(request, '/aliases/delete') }}" style="display:inline">
+  {% if slug %}<input type="hidden" name="slug" value="{{ slug }}">{% endif %}
+  <input type="hidden" name="name" value="{{ a.name }}">
+  <button>Delete</button>
+</form>
+{% endmacro %}
+{% block content %}
+<h1>Aliases</h1>
+{% if msg %}<p role="status"><strong>{{ msg }}</strong></p>{% endif %}
+{% if error %}<p role="alert"><strong>{{ error }}</strong></p>{% endif %}
+
+<h2>All recipes</h2>
+{% for a in aliases %}
+<div>
+  <strong>{{ a.name }}</strong>: {% if a.exclude %}leave out{% else %}{{ a.description }} ({{ a.food_id }}){% endif %}
+  {% if a.amount %}, {{ a.amount }}{% endif %}
+  <a href="{{ url(request, '/pick?scope=all&ingredient=' ~ a.name | urlencode) }}">Choose another food</a>
+  {{ delete(a) }}
+  <details><summary>Edit</summary>{{ form(a) }}</details>
+</div>
+{% else %}<p>No aliases yet.</p>{% endfor %}
+
+<h3>Add an alias</h3>
+<p><a href="{{ url(request, '/pick?scope=all&ingredient=') }}">Search for a food</a>, or paste a food id:</p>
+{{ form({"name": "", "food_id": "", "description": "", "amount": "", "exclude": False}) }}
+
+<h2>Single recipes</h2>
+{% for o in overrides %}
+<div>
+  <a href="{{ url(request, '/recipes/' ~ o.slug | urlencode) }}">{{ o.recipe }}</a> - <strong>{{ o.name }}</strong>:
+  {% if o.exclude %}leave out{% else %}{{ o.description }} ({{ o.food_id }}){% endif %}
+  {% if o.amount %}, {{ o.amount }}{% endif %}
+  {{ delete(o, o.slug) }}
+  <details><summary>Edit</summary>{{ form(o, o.slug) }}</details>
+</div>
+{% else %}<p>No per-recipe overrides.</p>{% endfor %}
+
+<h2>Import pantry.json</h2>
+<form method="post" action="{{ url(request, '/aliases/import') }}">
+  <textarea name="text" rows="8" cols="60" placeholder="Paste the contents of pantry.json"></textarea>
+  <button>Import</button>
+</form>
+{% endblock %}

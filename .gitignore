@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.har
+.env
+pantry.json
+review*.md
+sync-all*.md

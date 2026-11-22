@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% macro secret(name, label, type="password") %}
+<p><label>{{ label }}
+  <input type="{{ type }}" name="{{ name }}" autocomplete="off" placeholder="{{ 'saved, type to replace' if saved[name] else 'not set' }}">
+</label> {% if saved[name] %}<em>saved</em>{% endif %}</p>
+{% endmacro %}
+{% block content %}
+<h1>Settings</h1>
+{% if message %}<p role="status"><strong>{{ message }}</strong></p>{% endif %}
+<form method="post" action="{{ url(request, '/settings') }}">
+  <h2>Mealie</h2>
+  <p><label>URL <input name="mealie_url" value="{{ mealie_url }}" size="40"></label></p>
+  <p>Enter your Mealie username and password once to create an API token (they are not stored), or paste a token.</p>
+  <p><label>Username <input name="mealie_username" autocomplete="off"></label></p>
+  {{ secret("mealie_password", "Password") }}
+  {{ secret("mealie_token", "API token") }}
+  <h2>MyNetDiary</h2>
+  {{ secret("mnd_email", "Email", "text") }}
+  {{ secret("mnd_password", "Password") }}
+  {{ secret("mnd_jsessionid", "JSESSIONID (optional fallback)") }}
+  <h2>Auto-sync</h2>
+  <p><label><input type="checkbox" name="auto_sync" {% if auto_sync %}checked{% endif %}> Auto-sync</label>
+    <em>Turn this on after the first Refresh shows your existing recipes as saved.</em></p>
+  <p><label>Check Mealie every <input name="poll_minutes" value="{{ poll_minutes }}" inputmode="numeric" size="4" required> minutes</label></p>
+  <p><label>Save a recipe once it has not changed for <input name="quiet_minutes" value="{{ quiet_minutes }}" inputmode="numeric" size="4" required> minutes</label></p>
+  <h2>Notifications</h2>
+  <p><label>Phone notification service (optional, the part after notify.)
+    <input name="notify_service" value="{{ notify_service }}" placeholder="mobile_app_my_phone" size="30">
+  </label></p>
+  <button type="submit">Save</button>
+</form>
+<form method="post" action="{{ url(request, '/settings/test-mealie') }}"><button>Test Mealie</button>
+  {% if mealie_ok %}<em>last test passed</em>{% endif %}</form>
+<form method="post" action="{{ url(request, '/settings/test-mnd') }}"><button>Test MyNetDiary</button>
+  {% if mnd_ok %}<em>last test passed</em>{% endif %}</form>
+<form method="post" action="{{ url(request, '/settings/run-now') }}"><button>Run sync now</button></form>
+{% endblock %}

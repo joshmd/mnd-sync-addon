@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .badge { padding: 0 .5em; border-radius: .5em; border: 1px solid currentColor; font-size: .85em; }
+  .ready, .saved { color: green; } .review, .changed { color: darkorange; }
+  .error, .duplicate, .removed { color: crimson; } .empty { opacity: .7; }
+  @media (prefers-color-scheme: dark) { .ready, .saved { color: #6c6; } .review, .changed { color: #fb4; } .error, .duplicate, .removed { color: #f77; } }
+  table { border-collapse: collapse; width: 100%; } td, th { text-align: left; padding: .25rem .5rem; }
+</style>
+<h1>Recipes</h1>
+{% if msg %}<p role="status"><strong>{{ msg }}</strong></p>{% endif %}
+{% if busy %}<p>A sync is already running.</p>{% endif %}
+{% if last_run %}<p>Last run: {{ last_run.started_at }} ({{ last_run.trigger }}){% if last_run.error %}, failed{% endif %}</p>{% endif %}
+<form method="post" action="{{ url(request, '/refresh') }}"><button>Refresh from Mealie</button></form>
+<form method="post" action="{{ url(request, '/sync') }}"><input type="hidden" name="all" value="1">
+  <button name="mode" value="sync">Sync all ready</button></form>
+<p>Show: <a href="{{ url(request, '/recipes') }}"{% if not status %} aria-current="page"{% endif %}>all</a>
+  {% for s in statuses %}<a href="{{ url(request, '/recipes?status=' ~ s) }}"{% if s == status %} aria-current="page"{% endif %}>{{ s }}</a> {% endfor %}</p>
+<form method="post" action="{{ url(request, '/sync') }}">
+<table>
+  <tr><th></th><th>Recipe</th><th>Status</th><th>kcal/serving</th></tr>
+  {% for r in recipes %}
+  <tr>
+    <td><input type="checkbox" name="slugs[]" value="{{ r.slug }}" aria-label="Select {{ r.name }}"></td>
+    <td><a href="{{ url(request, '/recipes/' ~ r.slug | urlencode) }}">{{ r.name }}</a></td>
+    <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+    <td>{% if r.mapping_json %}{{ (r.mapping_json | fromjson).kcal_per_serving | round | int if (r.mapping_json | fromjson).kcal_per_serving is not none else '' }}{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="4">No recipes yet. Press Refresh.</td></tr>
+  {% endfor %}
+</table>
+<p>
+  <button name="mode" value="dry">Check selected</button>
+  <button name="mode" value="sync">Sync selected</button>
+  <button name="mode" value="force">Force sync selected</button>
+</p>
+</form>
+{% endblock %}

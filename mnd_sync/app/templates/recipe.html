@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ row.name }}</h1>
+{% if msg %}<p role="status"><strong>{{ msg }}</strong></p>{% endif %}
+<p>Status: <strong>{{ row.status }}</strong>{% if row.saved_at %}, saved {{ row.saved_at }}{% endif %}</p>
+{% if row.status == "changed" %}
+<p>This recipe changed in Mealie after it was saved. MyNetDiary can't be updated automatically yet:
+  delete it in MyNetDiary, then confirm below.</p>
+<form method="post" action="{{ url(request, '/recipes/' ~ row.slug | urlencode ~ '/forget') }}">
+  {% if ask_forget %}<p><strong>Have you deleted "{{ row.name }}" in MyNetDiary?</strong> If it is still there,
+    it will show as duplicate and not be saved twice.</p><input type="hidden" name="confirm" value="1">
+  <button>Yes, I deleted it: sync it again</button> <a href="{{ url(request, '/recipes/' ~ row.slug | urlencode) }}">Cancel</a>
+  {% else %}<button>I deleted it in MyNetDiary</button>{% endif %}
+</form>
+{% endif %}
+{% if m %}
+<p>Servings: {{ m.servings }}, total {{ m.total_kcal | round | int if m.total_kcal is not none else '?' }} kcal,
+  per serving {{ m.kcal_per_serving | round | int if m.kcal_per_serving is not none else '?' }} kcal</p>
+<table>
+  <tr><th>Ingredient</th><th>Matched to</th><th>Amount</th><th>Grams</th><th>kcal</th><th>kcal/100 g</th><th>Note</th></tr>
+  {% for r in m.resolutions %}
+  <tr>
+    <td>{{ r.ingredient }}</td>
+    <td>{% if r.skipped %}skipped{% elif r.matched %}{{ r.mnd_description }} ({{ r.confidence }}){% else %}no match{% endif %}</td>
+    <td>{{ r.amount }}</td>
+    <td>{{ r.grams | round(1) if r.grams is not none else '' }}</td>
+    <td>{{ r.calories | round | int if r.calories is not none else '' }}</td>
+    <td>{{ r.per100 | round | int if r.per100 is not none else '' }}</td>
+    <td>{{ r.note or r.amount_issue or '' }}{% if r.needs_review %} (needs review){% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p>No mapping yet.</p>{% endif %}
+<form method="post" action="{{ url(request, '/recipes/' ~ row.slug | urlencode ~ '/recheck') }}"><button>Re-check</button></form>
+{% if row.status not in ("saved", "changed", "removed") %}
+<form method="post" action="{{ url(request, '/sync') }}"><input type="hidden" name="slugs[]" value="{{ row.slug }}">
+  <button name="mode" value="sync">Sync this recipe</button></form>
+{% endif %}
+{% endblock %}

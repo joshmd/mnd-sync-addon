@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Force sync?</h1>
+<p>These recipes will be saved even though some ingredients are unresolved, so their calories may be too low.</p>
+{% for name, items in lines %}
+<h2>{{ name }}</h2>
+<ul>{% for r in items %}<li>{{ r.ingredient }} ({{ r.note or r.amount_issue or ('no match' if not r.matched else 'needs review') }})</li>
+{% else %}<li>No unresolved ingredients.</li>{% endfor %}</ul>
+{% endfor %}
+<form method="post" action="{{ url(request, '/sync') }}">
+  {% for s in slugs %}<input type="hidden" name="slugs[]" value="{{ s }}">{% endfor %}
+  <input type="hidden" name="mode" value="force"><input type="hidden" name="confirm" value="1">
+  <button>Save anyway</button> <a href="{{ url(request, '/') }}">Cancel</a>
+</form>
+{% endblock %}

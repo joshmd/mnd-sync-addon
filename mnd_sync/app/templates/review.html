@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Review</h1>
+{% if msg %}<p role="status"><strong>{{ msg }}</strong></p>{% endif %}
+{% for g in groups %}
+{% set first = g["items"][0] %}
+<section>
+  <h2>{{ g.name }}</h2>
+  <ul>
+    {% for row, r in g["items"] %}
+    <li><a href="{{ url(request, '/recipes/' ~ row.slug | urlencode) }}">{{ row.name }}</a>:
+      {% if r.matched %}{{ r.mnd_description }} ({{ r.confidence }}){% else %}no match{% endif %}
+      {% if r.note or r.amount_issue %} - {{ r.note or r.amount_issue }}{% endif %}
+      <form method="post" action="{{ url(request, '/resolve') }}" style="display:inline">
+        <input type="hidden" name="ingredient" value="{{ g.name }}">
+        <input type="hidden" name="slug" value="{{ row.slug }}">
+        <input type="hidden" name="scope" value="recipe">
+        {% if r.mnd_food_id %}<button name="action" value="accept">This recipe only: accept</button>{% endif %}
+        <button name="action" value="exclude">This recipe only: leave out</button>
+        <a href="{{ url(request, '/pick?scope=recipe&ingredient=' ~ g.name | urlencode ~ '&slug=' ~ row.slug | urlencode) }}">This recipe only: choose another</a>
+      </form></li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ url(request, '/resolve') }}">
+    <input type="hidden" name="ingredient" value="{{ g.name }}">
+    <input type="hidden" name="slug" value="{{ first[0].slug }}">
+    <input type="hidden" name="scope" value="all">
+    <label>Amount (optional) <input name="amount" placeholder="e.g. 150 g"></label>
+    {% if first[1].mnd_food_id %}<button name="action" value="accept">All recipes: accept {{ first[1].mnd_description }}</button>{% endif %}
+    <button name="action" value="exclude">All recipes: leave out</button>
+    <a href="{{ url(request, '/pick?scope=all&ingredient=' ~ g.name | urlencode ~ '&slug=' ~ first[0].slug | urlencode) }}">All recipes: choose another</a>
+  </form>
+</section>
+{% else %}<p>Nothing to review.</p>{% endfor %}
+{% endblock %}
