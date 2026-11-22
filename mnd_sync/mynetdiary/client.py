@@ -291,7 +291,11 @@ class MndClient:
         or the request body when dry-run.
         """
         loaded = self._request("GET", "muiLoadRecipe.do", params={"recipeId": food_id})
-        old = loaded["recipe"]
+        _raise_if_error("muiLoadRecipe.do", loaded)
+        old = loaded.get("recipe") if isinstance(loaded, dict) else None
+        if not isinstance(old, dict):
+            raise MndRequestError(f"muiLoadRecipe.do returned no recipe for {food_id}",
+                                  endpoint="muiLoadRecipe.do", payload=str(loaded)[:500])
         new = recipe.to_payload()["recipe"]
         for key in ("name", "foods", "serving"):
             if key in new:

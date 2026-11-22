@@ -30,6 +30,14 @@ def check(label, cond, detail=""):
         failures.append(label)
 
 
+def cleanup(label, fn, *args):
+    # a failed cleanup must not skip the rest or mask the original error
+    try:
+        fn(*args, dry_run=False)
+    except Exception as e:
+        check(f"cleanup {label}", False, repr(e))
+
+
 def recipe(c, banana, amount, servings):
     r = Recipe(name=NAME, servings=servings)
     r.add_ingredient(c.get_food_entry(banana.food_id, amount), amount)
@@ -51,7 +59,7 @@ def entry_fields(c):
         check("entry has entryNo and name", bool(name), f"(entryNo={n}, name={name!r})")
         check("day_entries maps entryNo", bool(c.day_entries(DAY1).get(n)))
     finally:
-        c.delete_food_entry(DAY1, n, dry_run=False)
+        cleanup(f"delete entry {n}", c.delete_food_entry, DAY1, n)
     check("entry gone after delete", n not in c.day_entries(DAY1))
 
 
@@ -77,9 +85,9 @@ def recipe_flow(c):
     finally:
         print("3. Retire")
         for day, n in entries:
-            c.delete_food_entry(day, n, dry_run=False)
+            cleanup(f"delete entry {n}", c.delete_food_entry, day, n)
         for i in ids:
-            c.retire_food(i, dry_run=False)
+            cleanup(f"retire {i}", c.retire_food, i)
         check("recipe gone from existing_recipes",
               NAME.lower() not in c.existing_recipes())
 

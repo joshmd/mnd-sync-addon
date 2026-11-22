@@ -86,3 +86,11 @@ def test_retire_food():
     c, _ = client({"success": False})
     with pytest.raises(MndRequestError):
         c.retire_food("80306060")
+
+
+@pytest.mark.parametrize("resp", [{}, {"errorText": "gone"}, {"recipe": None}])
+def test_update_recipe_load_without_recipe_raises(resp):
+    c, s = client(resp)
+    with pytest.raises(MndRequestError):
+        c.update_recipe("80309132", Recipe(name="new"))
+    assert len(s.calls) == 1
