@@ -94,3 +94,12 @@ def test_update_recipe_load_without_recipe_raises(resp):
     with pytest.raises(MndRequestError):
         c.update_recipe("80309132", Recipe(name="new"))
     assert len(s.calls) == 1
+
+
+def test_update_recipe_refused_returns_none():
+    c, _ = client({"recipe": {"foodId": 1, "name": "old", "foods": [], "serving": "s"}},
+                  {"recipe": {"name": "new"}})
+    assert c.update_recipe("1", Recipe(name="new")) is None
+    c, _ = client({"recipe": {"foodId": 1, "name": "old", "foods": [], "serving": "s"}}, {})
+    with pytest.raises(MndRequestError):
+        c.update_recipe("1", Recipe(name="new"))

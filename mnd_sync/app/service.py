@@ -201,6 +201,41 @@ class SyncService:
             self.store.mark_stale([slug])  # if MyNetDiary is down now, the next refresh maps it
             self._retry(lambda c: self._remap(c, [slug]))
 
+    def update(self, slug, *, commit) -> list[str]:
+        """Replace a changed recipe in MyNetDiary; returns the ingredient lines left out for review."""
+        with self._guard():
+            row = self.store.get_recipe(slug)
+            if not row or row["status"] != CHANGED or not row["mnd_food_id"]:
+                raise ValueError("only a recipe that changed after it was saved can be updated")
+            result = self._retry(lambda c: map_mealie_recipe(
+                c, self.mealie.client().get_recipe(slug), aliases=self.store.alias_map_for(slug), existing={}))
+            if not (result.recipe and result.recipe.ingredients):
+                raise ValueError("nothing to save: the recipe has no matched ingredients")
+            self._put(slug, mapping_json=result_to_json(result))  # status stays changed
+            lines = [r.source.display or r.query for r in result.resolutions if r.needs_review]  # covers unmatched
+            if commit:
+                old = row["mnd_food_id"]
+
+                def save(c):
+                    saved = c.update_recipe(old, result.recipe)
+                    return saved or c.save_recipe(result.recipe, dry_run=False)  # in the diary: save a new copy
+
+                new = self._retry(save).food_id
+                self._put(slug, status=SAVED, mnd_food_id=new, saved_mealie_updated=row["mealie_updated"],
+                          saved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+                if new != old:  # after the new id is stored: a failed retire leaves a copy, never a lost link
+                    self._retry(lambda c: c.retire_food(old))
+            return lines
+
+    def delete_in_mnd(self, slug) -> None:
+        """Retire the MyNetDiary recipe of a recipe removed from Mealie; past diary entries keep it."""
+        with self._guard():
+            row = self.store.get_recipe(slug)
+            if not row or row["status"] != REMOVED or not row["mnd_food_id"]:
+                raise ValueError("only a recipe removed from Mealie can be deleted in MyNetDiary")
+            self._retry(lambda c: c.retire_food(row["mnd_food_id"]))
+            self._put(slug, mnd_food_id=None, saved_at=None, saved_mealie_updated=None)
+
     # ----- sync -------------------------------------------------------------
 
     def sync(self, slugs=None, *, force=False, trigger="manual") -> dict:

@@ -287,8 +287,8 @@ class MndClient:
                       dry_run: Optional[bool] = None) -> Any:
         """Update a saved recipe in place: load it, swap name/foods/serving, save.
 
-        Returns a SavedFood (its food_id may differ if MND forked the recipe),
-        or the request body when dry-run.
+        Returns a SavedFood, None when MND refuses because the recipe is in the
+        diary (nothing saved), or the request body when dry-run.
         """
         loaded = self._request("GET", "muiLoadRecipe.do", params={"recipeId": food_id})
         _raise_if_error("muiLoadRecipe.do", loaded)
@@ -308,6 +308,8 @@ class MndClient:
         _raise_if_error("muiSaveRecipe.do", result)
         saved = SavedFood.from_save_response(result)
         if not saved.food_id:
+            if "recipe" in result:  # in a diary entry: MND echoes the recipe and saves nothing
+                return None
             raise MndRequestError("muiSaveRecipe.do returned no foodId",
                                   endpoint="muiSaveRecipe.do", payload=str(result)[:500])
         return saved

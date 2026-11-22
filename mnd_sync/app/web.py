@@ -114,7 +114,7 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
     def recipe(request: Request, slug: str, msg: str = ""):
         return recipe_page(request, slug, msg)
 
-    def recipe_page(request, slug, msg="", ask_forget=False):
+    def recipe_page(request, slug, msg="", ask_forget=False, ask_update=None, ask_delete=False):
         row = store.get_recipe(slug)
         if row is None:
             raise HTTPException(404, "No such recipe")
@@ -122,7 +122,8 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
         for r in m["resolutions"] if m else []:  # kcal per 100 g, as the CLI report shows it
             r["per100"] = r["calories"] / r["grams"] * 100 if r["calories"] is not None and (r["grams"] or 0) >= 5 else None
         return templates.TemplateResponse(request, "recipe.html", {"row": row, "m": m, "msg": msg,
-                                                                "ask_forget": ask_forget})
+                                                                "ask_forget": ask_forget, "ask_update": ask_update,
+                                                                "ask_delete": ask_delete})
 
     @app.post("/refresh")
     def refresh(request: Request):
@@ -141,6 +142,30 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
             return recipe_page(request, slug, ask_forget=True)
         return run(request, f"/recipes/{quote(slug)}", lambda: svc.forget_saved(slug),
                    lambda _: f"Status now: {store.get_recipe(slug)['status']}")
+
+    @app.post("/recipes/{slug}/update")
+    def update(request: Request, slug: str, confirm: str = Form("")):
+        row = store.get_recipe(slug)
+        if row is None or row["status"] != "changed" or not row["mnd_food_id"]:
+            raise HTTPException(400, "Only a recipe that changed after it was saved can be updated")
+        path = f"/recipes/{quote(slug)}"
+        if confirm:
+            return run(request, path, lambda: svc.update(slug, commit=True), lambda _: "Updated in MyNetDiary")
+        try:
+            names = svc.update(slug, commit=False)
+        except Exception as e:  # noqa: BLE001  text can carry URLs: never shown
+            log.warning("action failed (%s)", describe(e))
+            return back(request, path, _FAILED[error_kind(e)])
+        return recipe_page(request, slug, ask_update=names)
+
+    @app.post("/recipes/{slug}/delete")
+    def delete(request: Request, slug: str, confirm: str = Form("")):
+        row = store.get_recipe(slug)
+        if row is None or row["status"] != "removed" or not row["mnd_food_id"]:
+            raise HTTPException(400, "Only a recipe removed from Mealie can be deleted in MyNetDiary")
+        if not confirm:
+            return recipe_page(request, slug, ask_delete=True)
+        return run(request, f"/recipes/{quote(slug)}", lambda: svc.delete_in_mnd(slug), lambda _: "Deleted in MyNetDiary")
 
     @app.post("/recipes/{slug}/recheck")
     def recheck(request: Request, slug: str):

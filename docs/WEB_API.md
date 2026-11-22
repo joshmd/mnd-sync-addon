@@ -85,6 +85,12 @@ echoes the full recipe (validate/recalc, no top-level foodId), then a final one
 that returns the numeric foodId. For programmatic use, send the complete recipe
 object once; read foodId from the response.
 
+Updating (send the loaded recipe back with its numeric foodId) works in place only while
+the recipe is in no diary entry. Otherwise the reply is {"recipe":{...}, <account envelope>}
+with no foodId and nothing is saved; save a new recipe with the same name instead.
+muiRetireMyFood.do on a recipe that is in the diary keeps those entries (calories kept,
+retired:true) and renames it "<name> (deleted)".
+
 ## Mealie -> MND sync (Route 2, robust)
 For each Mealie ingredient: muiFoodSearch.do -> take best result object ->
 set amount -> push into foods[] (ordinal 1..n) -> POST muiSaveRecipe.do with

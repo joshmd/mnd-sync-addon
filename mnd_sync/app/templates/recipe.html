@@ -4,13 +4,31 @@
 {% if msg %}<p role="status"><strong>{{ msg }}</strong></p>{% endif %}
 <p>Status: <strong>{{ row.status }}</strong>{% if row.saved_at %}, saved {{ row.saved_at }}{% endif %}</p>
 {% if row.status == "changed" %}
-<p>This recipe changed in Mealie after it was saved. MyNetDiary can't be updated automatically yet:
-  delete it in MyNetDiary, then confirm below.</p>
+<p>This recipe changed in Mealie after it was saved.</p>
+{% if row.mnd_food_id %}
+<form method="post" action="{{ url(request, '/recipes/' ~ row.slug | urlencode ~ '/update') }}">
+  {% if ask_update is not none %}<p><strong>Replace the MyNetDiary recipe with the current Mealie version?</strong>
+    If it is already in your diary, MyNetDiary keeps the old version for past days, and planned meals from today on move to the new one.
+    {% if ask_update %}These lines still need review and will be left out: {{ ask_update | join(", ") }}.{% endif %}</p>
+  <input type="hidden" name="confirm" value="1"><button>Yes, update it</button>
+  <a href="{{ url(request, '/recipes/' ~ row.slug | urlencode) }}">Cancel</a>
+  {% else %}<button>Update in MyNetDiary</button>{% endif %}
+</form>
+{% endif %}
+<p>Or delete it in MyNetDiary yourself, then confirm below.</p>
 <form method="post" action="{{ url(request, '/recipes/' ~ row.slug | urlencode ~ '/forget') }}">
   {% if ask_forget %}<p><strong>Have you deleted "{{ row.name }}" in MyNetDiary?</strong> If it is still there,
     it will show as duplicate and not be saved twice.</p><input type="hidden" name="confirm" value="1">
   <button>Yes, I deleted it: sync it again</button> <a href="{{ url(request, '/recipes/' ~ row.slug | urlencode) }}">Cancel</a>
   {% else %}<button>I deleted it in MyNetDiary</button>{% endif %}
+</form>
+{% endif %}
+{% if row.status == "removed" and row.mnd_food_id %}
+<form method="post" action="{{ url(request, '/recipes/' ~ row.slug | urlencode ~ '/delete') }}">
+  {% if ask_delete %}<p><strong>Delete "{{ row.name }}" from MyNetDiary?</strong> Past diary entries keep it.</p>
+  <input type="hidden" name="confirm" value="1"><button>Yes, delete it</button>
+  <a href="{{ url(request, '/recipes/' ~ row.slug | urlencode) }}">Cancel</a>
+  {% else %}<button>Delete in MyNetDiary too</button>{% endif %}
 </form>
 {% endif %}
 {% if m %}
