@@ -114,3 +114,20 @@ def test_old_database_gets_stale_column(tmp_path):
     db.commit()
     db.close()
     assert Store(tmp_path / "old.db").get_recipe("a")["stale"] == 0
+
+
+def test_plan_entry_roundtrip(store):
+    store.put_plan_entry(95, date="2026-11-23", meal=3, state="waiting")
+    store.put_plan_entry(95, state="logged", entry_no=301)
+    row = store.get_plan_entry(95)
+    assert (row["date"], row["state"], row["entry_no"]) == ("2026-11-23", "logged", 301)
+    assert row["title"] is None
+    assert store.list_plan_entries("2026-11-24") == []
+    assert [r["plan_id"] for r in store.list_plan_entries("2026-11-23")] == [95]
+    store.delete_plan_entry(95)
+    assert store.get_plan_entry(95) is None
+
+
+def test_plan_entry_rejects_unknown_columns(store):
+    with pytest.raises(ValueError):
+        store.put_plan_entry(1, date="2026-11-23", bogus="x")

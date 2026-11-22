@@ -78,3 +78,29 @@ def test_home_assistant_url_rejected_with_guidance(url):
 def test_direct_addon_port_accepted():
     c = MealieClient("http://192.168.1.10:9000", "tok", session=_Session(_Resp()))
     assert c.base_url == "http://192.168.1.10:9000"
+
+
+class _PagedSession:
+    """Serves one canned page per request, keyed by the 'page' query param."""
+
+    def __init__(self, pages):
+        self.pages, self.headers, self.calls = pages, {}, []
+
+    def get(self, url, timeout=None, params=None, **kw):
+        import json
+        self.calls.append((url, dict(params or {})))
+        body = self.pages[params["page"]]
+        return _Resp(text=json.dumps(body), ctype="application/json")
+
+
+def test_list_mealplans_follows_pages():
+    sess = _PagedSession({
+        1: {"items": [{"id": 1}], "total_pages": 2},
+        2: {"items": [{"id": 2}], "total_pages": 2},
+    })
+    c = MealieClient("http://h", "tok", session=sess)
+    assert [p["id"] for p in c.list_mealplans("2026-11-23", "2026-12-06")] == [1, 2]
+    url, params = sess.calls[0]
+    assert url == "http://h/api/households/mealplans"
+    assert params["start_date"] == "2026-11-23" and params["end_date"] == "2026-12-06"
+    assert params["perPage"] == 50

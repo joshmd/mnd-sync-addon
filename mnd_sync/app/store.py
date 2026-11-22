@@ -13,6 +13,16 @@ _lock = threading.Lock()
 _DEFAULTS = {"mealie_url": "http://a0d7b954-mealie:9000", "poll_minutes": 30, "quiet_minutes": 60}
 _INT_SETTINGS = ("poll_minutes", "quiet_minutes")
 
+PLAN_NOTE = "note"
+PLAN_WAITING = "waiting"
+PLAN_LOGGED = "logged"
+PLAN_FAILED = "failed"
+PLAN_USER_REMOVED = "removed_by_user"
+
+# Columns of plan_entries other than plan_id; put_plan_entry accepts only these.
+_PLAN_COLUMNS = frozenset({"date", "meal", "slug", "title", "state", "mnd_day", "entry_no",
+                           "food_name", "food_id"})
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS recipes (
@@ -24,6 +34,9 @@ CREATE TABLE IF NOT EXISTS aliases (
 CREATE TABLE IF NOT EXISTS overrides (
   slug TEXT, name TEXT, food_id TEXT, description TEXT, amount TEXT, exclude INTEGER DEFAULT 0,
   PRIMARY KEY (slug, name));
+CREATE TABLE IF NOT EXISTS plan_entries (
+  plan_id INTEGER PRIMARY KEY, date TEXT, meal INTEGER, slug TEXT, title TEXT, state TEXT,
+  mnd_day TEXT, entry_no INTEGER, food_name TEXT, food_id TEXT);
 CREATE TABLE IF NOT EXISTS runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, started_at TEXT, ended_at TEXT, trigger TEXT,
   counts TEXT, error TEXT);
@@ -149,6 +162,31 @@ class Store:
         with _lock, self._db:
             self._db.executemany("REPLACE INTO aliases VALUES (?,?,?,?,?)", rows)
         return len(rows)
+
+    # ----- meal plan entries ----------------------------------------------
+
+    def get_plan_entry(self, plan_id: int) -> dict | None:
+        rows = self._rows("SELECT * FROM plan_entries WHERE plan_id=?", (plan_id,))
+        return rows[0] if rows else None
+
+    def put_plan_entry(self, plan_id: int, **fields) -> None:
+        """Insert or update the row; fields not given keep their stored values."""
+        unknown = set(fields) - _PLAN_COLUMNS
+        if unknown:
+            raise ValueError(f"unknown plan_entries column(s): {sorted(unknown)}")
+        cols = ["plan_id", *fields]
+        updates = ", ".join(f"{c}=excluded.{c}" for c in fields) or "plan_id=excluded.plan_id"
+        self._write(
+            f"INSERT INTO plan_entries ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})"
+            f" ON CONFLICT(plan_id) DO UPDATE SET {updates}",
+            (plan_id, *fields.values()))
+
+    def delete_plan_entry(self, plan_id: int) -> None:
+        self._write("DELETE FROM plan_entries WHERE plan_id=?", (plan_id,))
+
+    def list_plan_entries(self, from_date: str) -> list[dict]:
+        return self._rows("SELECT * FROM plan_entries WHERE date >= ? ORDER BY date, meal",
+                          (from_date,))
 
     # ----- runs -----------------------------------------------------------
 

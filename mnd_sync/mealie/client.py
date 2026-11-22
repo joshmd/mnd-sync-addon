@@ -132,9 +132,15 @@ class MealieClient:
         at the last page, on an empty page, or on a short page when the total
         isn't reported.
         """
+        return self._get_all("/api/recipes", {"perPage": per_page}, max_pages=max_pages)
+
+    def _get_all(self, path: str, params: dict[str, Any],
+                 max_pages: int = 1000) -> list[dict[str, Any]]:
+        """Every item of a paginated list endpoint; `params` must include perPage."""
+        per_page = int(params["perPage"])
         out: list[dict[str, Any]] = []
         for page in range(1, max_pages + 1):
-            data = self._get("/api/recipes", params={"page": page, "perPage": per_page})
+            data = self._get(path, params={**params, "page": page})
             if isinstance(data, list):  # unpaginated response
                 out.extend(data)
                 break
@@ -149,6 +155,11 @@ class MealieClient:
             elif len(items) < per_page:
                 break
         return out
+
+    def list_mealplans(self, start: str, end: str) -> list[dict[str, Any]]:
+        """Meal plan entries dated start..end (ISO dates), all pages."""
+        return self._get_all("/api/households/mealplans",
+                             {"start_date": start, "end_date": end, "perPage": 50})
 
     def get_recipe(self, slug: str) -> MealieRecipe:
         return MealieRecipe.from_api(self._get(f"/api/recipes/{slug}"))
