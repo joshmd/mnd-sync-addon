@@ -64,6 +64,22 @@ def test_review_lists_waiting_plan_rows(tmp_path):
     assert "Planned but not in MyNetDiary" in t and "Stew" in t and "Dinner" in t
 
 
+def test_review_waiting_row_without_recipe_has_no_link(tmp_path):
+    c, store, _ = make(tmp_path)
+    put(store, 1, "waiting", slug="ghost", title="Stew")
+    t = c.get("/review", headers=H).text
+    assert "Stew" in t and "/recipes/ghost" not in t
+    store.upsert_recipe("ghost", "Ghost", "t", "{}", "saved")
+    assert "/recipes/ghost" in c.get("/review", headers=H).text
+
+
+def test_mealplan_run_message_includes_failures(tmp_path):
+    c, _, svc = make(tmp_path)
+    svc.log_meal_plan = lambda today: {"logged": 0, "moved": 0, "removed": 0, "waiting": 0, "user_removed": 2, "failed": 1}
+    r = c.post("/mealplan/run", headers=H, follow_redirects=False)
+    assert "1%20failed%2C%202%20removed%20by%20you" in r.headers["location"]
+
+
 def test_settings_checkbox_saves_log_meal_plan(tmp_path):
     c, store, _ = make(tmp_path)
     c.post("/settings", data={"log_meal_plan": "on"}, headers=H)

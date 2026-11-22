@@ -37,7 +37,7 @@
   <h2>Planned but not in MyNetDiary</h2>
   <ul>
     {% for w in waiting %}
-    <li>{{ w.date }}, {{ meals[w.meal] }}: {{ w.title }} (<a href="{{ url(request, '/recipes/' ~ w.slug | urlencode) }}">recipe</a>)</li>
+    <li>{{ w.date }}, {{ meals[w.meal] }}: {{ w.title }} {% if w.slug in known %}(<a href="{{ url(request, '/recipes/' ~ w.slug | urlencode) }}">recipe</a>){% endif %}</li>
     {% endfor %}
   </ul>
 </section>

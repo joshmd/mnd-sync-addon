@@ -74,14 +74,17 @@ def recipe_flow(c):
             entries.append((day, c.log_on_day(fid, day, MealType.DINNER, "1 serving")[0]))
         before = kcal(c, fid)
         saved = c.update_recipe(fid, recipe(c, banana, "2 medium", "8"), dry_run=False)
-        if saved.food_id not in ids:
-            ids.append(saved.food_id)
-        check("update keeps same foodId (no fork)", saved.food_id == fid,
-              f"(before={fid}, after={saved.food_id})")
-        loaded = c._request("GET", "muiLoadRecipe.do", params={"recipeId": saved.food_id})["recipe"]
-        print("  serving:", loaded.get("serving"), "entriesNum:", loaded.get("entriesNum"))
-        check("servings took", str(loaded.get("serving")) == "8")
-        print("  calories per 1 serving, before:", before, "after:", kcal(c, saved.food_id))
+        if saved is None:
+            print("  update refused (recipe in diary) — expected")
+        else:
+            if saved.food_id not in ids:
+                ids.append(saved.food_id)
+            check("update keeps same foodId (no fork)", saved.food_id == fid,
+                  f"(before={fid}, after={saved.food_id})")
+            loaded = c._request("GET", "muiLoadRecipe.do", params={"recipeId": saved.food_id})["recipe"]
+            print("  serving:", loaded.get("serving"), "entriesNum:", loaded.get("entriesNum"))
+            check("servings took", str(loaded.get("serving")) == "8")
+            print("  calories per 1 serving, before:", before, "after:", kcal(c, saved.food_id))
     finally:
         print("3. Retire")
         for day, n in entries:

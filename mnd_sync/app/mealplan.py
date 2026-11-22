@@ -58,7 +58,7 @@ def sync_plan(store, mnd, mealie, today: date) -> dict[str, int]:
 
 def _sync_item(store, mnd, pid, day, meal, slug, title, t, counts) -> None:
     row = store.get_plan_entry(pid)
-    if row and (row["state"] == PLAN_USER_REMOVED or row["date"] < t):
+    if row and (row["state"] == PLAN_USER_REMOVED or (row["state"] == PLAN_LOGGED and row["date"] < t)):
         return  # the user wins; the past is frozen
     recipe = store.get_recipe(slug) if slug else None
     food = recipe["mnd_food_id"] if recipe and recipe["status"] in (SAVED, CHANGED) else None

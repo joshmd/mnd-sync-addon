@@ -201,8 +201,9 @@ class SyncService:
             self.store.mark_stale([slug])  # if MyNetDiary is down now, the next refresh maps it
             self._retry(lambda c: self._remap(c, [slug]))
 
-    def update(self, slug, *, commit) -> list[str]:
-        """Replace a changed recipe in MyNetDiary; returns the ingredient lines left out for review."""
+    def update(self, slug, *, commit):
+        """Replace a changed recipe in MyNetDiary. Preview: the ingredient lines left out for review.
+        Commit: True when the old copy could not be retired (the update itself succeeded)."""
         with self._guard():
             row = self.store.get_recipe(slug)
             if not row or row["status"] != CHANGED or not row["mnd_food_id"]:
@@ -224,7 +225,12 @@ class SyncService:
                 self._put(slug, status=SAVED, mnd_food_id=new, saved_mealie_updated=row["mealie_updated"],
                           saved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 if new != old:  # after the new id is stored: a failed retire leaves a copy, never a lost link
-                    self._retry(lambda c: c.retire_food(old))
+                    try:
+                        self._retry(lambda c: c.retire_food(old))
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("old copy not retired (%s)", describe(e))
+                        return True
+                return False
             return lines
 
     def delete_in_mnd(self, slug) -> None:

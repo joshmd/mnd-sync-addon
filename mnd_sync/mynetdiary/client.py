@@ -204,7 +204,10 @@ class MndClient:
                 for fe in meal.get("foodEntries", [])}
 
     def day_entries(self, day: str) -> dict[int, Optional[str]]:
-        return self.entries_of(self.get_meals(day))
+        data = self.get_meals(day)
+        if not isinstance(data, dict) or not isinstance(data.get("meals"), list):
+            raise MndRequestError("day reply has no meals")  # not an empty day: never read it as one
+        return self.entries_of(data)
 
     # ----- writes (dry-run aware) ----------------------------------------
 

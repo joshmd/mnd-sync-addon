@@ -238,7 +238,24 @@ def test_plan_waiting_notifies(store):
     svc, notes = FakeService(store), Notes()
     svc.plan_result = {**svc.plan_result, "logged": 0, "waiting": 1}
     tick(svc, store, notes, NOW, recipes=False, plan=True)
-    assert [m for _, m in notes.sent] == ["1 planned meal wait for their recipe to sync: see Review"]
+    assert [m for _, m in notes.sent] == ["1 planned meal waits for their recipe to sync: see Review"]
+
+
+def test_plan_moves_are_not_counted_as_added(store):
+    svc, notes = FakeService(store), Notes()
+    svc.plan_result = {**svc.plan_result, "logged": 3, "moved": 2}
+    tick(svc, store, notes, NOW, recipes=False, plan=True)
+    assert [m for _, m in notes.sent] == ["1 planned meal added to the MyNetDiary diary, 2 moved"]
+
+
+def test_recipes_notified_even_when_plan_fails(store):
+    put(store, "a")
+    svc, notes = FakeService(store), Notes()
+    svc.plan_error = MealieError("http://leak")
+    out = tick(svc, store, notes, NOW, recipes=True, plan=True)
+    msgs = [m for _, m in notes.sent]
+    assert out == {"error": "mealie"} and any("1 new recipe synced" in m for m in msgs)
+    assert any("Mealie unreachable" in m for m in msgs)
 
 
 def test_plan_outage_notifies_once(store):

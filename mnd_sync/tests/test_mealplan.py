@@ -183,6 +183,13 @@ def test_past_entries_are_frozen(store, mnd):
     assert mnd.all() == [("2026-11-23", 301, "Smoothie")]
 
 
+def test_waiting_row_dated_past_is_relogged_when_item_moves_in(store, mnd):
+    store.put_plan_entry(1, date="2026-11-21", meal=3, slug="smoothie", title="", state="waiting")
+    counts = sync_plan(store, mnd, FakeMealie([item(1, "2026-11-23")]), TODAY)
+    assert counts == dict(ZERO, logged=1) and mnd.all() == [("2026-11-23", 301, "Smoothie")]
+    assert store.get_plan_entry(1)["state"] == "logged"
+
+
 def test_same_recipe_twice_tracked_separately(store, mnd):
     mealie = FakeMealie([item(1, "2026-11-24"), item(2, "2026-11-24")])
     assert sync_plan(store, mnd, mealie, TODAY)["logged"] == 2

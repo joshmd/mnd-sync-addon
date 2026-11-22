@@ -31,36 +31,18 @@ def _outage(store, notifier, key: str, message: str) -> dict:
     return {"error": key}
 
 
-def tick(service, store, notifier, now: datetime, *, recipes: bool = True, plan: bool = False) -> dict:
-    saved, planned = [], {}
-    try:
-        if recipes:
-            service.refresh()
-            due = [r["slug"] for r in store.list_recipes("ready")
-                   if should_autosave(r, now, store.get_setting("quiet_minutes"))]
-            saved = service.sync(due, force=False, trigger="auto")["saved"] if due else []
-        if plan:  # after the recipes, so entries whose recipe just synced are logged in the same tick
-            planned = service.log_meal_plan(date.today())  # local date: HA gives add-ons TZ
-    except SyncBusy:
+def _fail(store, notifier, e: Exception) -> dict:
+    if isinstance(e, SyncBusy):
         return {"error": "busy"}
-    except MndAuthError:
+    if isinstance(e, MndAuthError):
         log.warning("auto-sync: MyNetDiary login failed")
         return _outage(store, notifier, "mnd_auth", "MyNetDiary login failed")
-    except Exception as e:  # noqa: BLE001  # text may carry URLs: type and status only
-        kind = error_kind(e)
-        log.warning("auto-sync failed (%s)", describe(e))
-        return _outage(store, notifier, kind, OUTAGES[kind])
-    store.set_setting("last_outage", None)
-    result = {"saved": len(saved)}
-    if plan:
-        result["planned"] = planned["logged"]
-        if planned["logged"]:
-            notifier.send(TITLE, f"{_plural(planned['logged'], 'planned meal')} added to the MyNetDiary diary")
-        if planned["waiting"]:
-            notifier.send(TITLE, f"{_plural(planned['waiting'], 'planned meal')} wait for their recipe to sync: see Review")
-    if not recipes:
-        return result
+    kind = error_kind(e)  # text may carry URLs: type and status only
+    log.warning("auto-sync failed (%s)", describe(e))
+    return _outage(store, notifier, kind, OUTAGES[kind])
 
+
+def _notify_recipes(store, notifier, saved: list) -> None:
     rows = {r["slug"]: r for r in store.list_recipes()}
     if saved:
         names = ", ".join(rows[s]["name"] for s in saved if s in rows)
@@ -74,6 +56,39 @@ def tick(service, store, notifier, now: datetime, *, recipes: bool = True, plan:
     for r in rows.values():  # back to normal: forget, so a later return to review notifies again
         if r["notified"] and r["status"] not in ("review", "error"):
             store.set_notified(r["slug"], None)
+
+
+def tick(service, store, notifier, now: datetime, *, recipes: bool = True, plan: bool = False) -> dict:
+    saved, planned = [], {}
+    try:
+        if recipes:
+            service.refresh()
+            due = [r["slug"] for r in store.list_recipes("ready")
+                   if should_autosave(r, now, store.get_setting("quiet_minutes"))]
+            saved = service.sync(due, force=False, trigger="auto")["saved"] if due else []
+    except Exception as e:  # noqa: BLE001
+        return _fail(store, notifier, e)
+    plan_error = None
+    if plan:  # after the recipes, so entries whose recipe just synced are logged in the same tick
+        try:
+            planned = service.log_meal_plan(date.today())  # local date: HA gives add-ons TZ
+        except Exception as e:  # noqa: BLE001
+            plan_error = e
+    if recipes:  # sent even when the plan part failed: the saves already happened
+        _notify_recipes(store, notifier, saved)
+    if plan_error:
+        return _fail(store, notifier, plan_error)
+    store.set_setting("last_outage", None)
+    result = {"saved": len(saved)}
+    if plan:
+        added = planned["logged"] - planned["moved"]
+        result["planned"] = planned["logged"]
+        if added or planned["moved"]:
+            moved = f", {planned['moved']} moved" if planned["moved"] else ""
+            notifier.send(TITLE, f"{_plural(added, 'planned meal')} added to the MyNetDiary diary{moved}")
+        if planned["waiting"]:
+            n = planned["waiting"]
+            notifier.send(TITLE, f"{_plural(n, 'planned meal')} {'waits' if n == 1 else 'wait'} for their recipe to sync: see Review")
     return result
 
 

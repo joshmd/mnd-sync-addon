@@ -70,8 +70,9 @@ plan page for a real week, then check the diary. Only then turn it on.
 - Past days are never touched.
 
 On a recipe's page, *Update in MyNetDiary* (for a recipe that changed in
-Mealie) saves it as a new copy and retires the old one; days already in your
-diary keep the old version. *Delete in MyNetDiary too* removes a recipe you
+Mealie) updates the recipe in place or, if it is already in your diary, saves
+a new copy and retires the old one (past days keep the old version; planned
+meals from today on move to the new one). *Delete in MyNetDiary too* removes a recipe you
 deleted in Mealie.
 
 ## Privacy
@@ -83,7 +84,4 @@ Assistant's ingress (the sidebar panel); direct requests from other add-ons get 
 ## Limits
 
 - This uses MyNetDiary's unofficial web API and may break if MyNetDiary changes it.
-- A recipe already in MyNetDiary is not updated when you edit it in Mealie (it
-  shows as *changed*). Delete it in MyNetDiary, then open the recipe here and
-  press *I deleted it in MyNetDiary* to sync it again.
 - The MyNetDiary phone app may need a sync or a search before new recipes show up.

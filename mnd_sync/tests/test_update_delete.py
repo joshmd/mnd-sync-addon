@@ -66,8 +66,7 @@ def test_update_in_diary_saves_new_and_retires_old(tmp_path):
 def test_update_retire_failure_keeps_new_id(tmp_path):
     svc, mnd, _, store = changed(tmp_path, in_diary=True)
     mnd.retire_fails = True
-    with pytest.raises(RuntimeError):
-        svc.update("smoothie", commit=True)
+    assert svc.update("smoothie", commit=True) is True  # update succeeded, old copy stuck
     row = store.get_recipe("smoothie")
     assert row["mnd_food_id"] == mnd.id_at_retire != mnd.retired[0] and row["status"] == "saved"
 
@@ -102,13 +101,13 @@ def test_delete_only_for_removed(tmp_path):
 
 class FakeSvc:
     def __init__(self):
-        self.calls = []
+        self.calls, self.stuck = [], False
 
     busy = False
 
     def update(self, slug, *, commit):
         self.calls.append(("update", slug, commit))
-        return ["goo"]
+        return ["goo"] if not commit else self.stuck
 
     def delete_in_mnd(self, slug):
         self.calls.append(("delete", slug))
@@ -131,6 +130,13 @@ def test_update_route_asks_then_updates(tmp_path):
     assert svc.calls == [("update", "c", False)]
     r = c.post("/recipes/c/update", data={"confirm": "1"}, headers=HEADERS, follow_redirects=False)
     assert r.status_code == 303 and svc.calls[-1] == ("update", "c", True) and "Updated" in r.headers["location"]
+
+
+def test_update_route_reports_old_copy_not_removed(tmp_path):
+    c, svc = web(tmp_path)
+    svc.stuck = True
+    r = c.post("/recipes/c/update", data={"confirm": "1"}, headers=HEADERS, follow_redirects=False)
+    assert "old%20copy%20could%20not%20be%20removed" in r.headers["location"]
 
 
 def test_delete_route_asks_then_deletes(tmp_path):

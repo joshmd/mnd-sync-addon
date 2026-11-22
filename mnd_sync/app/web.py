@@ -154,7 +154,8 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
             raise HTTPException(400, "Only a recipe that changed after it was saved can be updated")
         path = f"/recipes/{quote(slug)}"
         if confirm:
-            return run(request, path, lambda: svc.update(slug, commit=True), lambda _: "Updated in MyNetDiary")
+            return run(request, path, lambda: svc.update(slug, commit=True), lambda stuck: "Updated in MyNetDiary" + (
+                ", but the old copy could not be removed: delete it in MyNetDiary" if stuck else ""))
         try:
             names = svc.update(slug, commit=False)
         except Exception as e:  # noqa: BLE001  text can carry URLs: never shown
@@ -208,7 +209,8 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
                     g["items"].append((row, r))
         waiting = [r for r in store.list_plan_entries(date.today().isoformat()) if r["state"] == PLAN_WAITING]
         return templates.TemplateResponse(request, "review.html", {
-            "groups": list(groups.values()), "msg": msg, "waiting": waiting, "meals": _MEALS})
+            "groups": list(groups.values()), "msg": msg, "waiting": waiting, "meals": _MEALS,
+            "known": {r["slug"] for r in waiting if store.get_recipe(r["slug"])}})
 
     @app.get("/mealplan")
     def mealplan(request: Request, msg: str = ""):
@@ -221,7 +223,8 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
     def mealplan_run(request: Request):
         def ok(c):
             parts = [f"{c[k]} {w}" for k, w in (("logged", "added"), ("moved", "moved"), ("removed", "removed"),
-                                                ("waiting", "waiting")) if c[k]]
+                                                ("waiting", "waiting"), ("failed", "failed"),
+                                                ("user_removed", "removed by you")) if c[k]]
             return "Meal plan: " + (", ".join(parts) or "nothing to do")
         return run(request, "/mealplan", lambda: svc.log_meal_plan(date.today()), ok)
 

@@ -44,6 +44,14 @@ def test_get_meals_sends_date():
     assert params["date"] == "2026-11-30" and "day" not in params
 
 
+def test_day_entries_rejects_reply_without_meals():
+    c, _ = client({})
+    with pytest.raises(MndRequestError):
+        c.day_entries("2026-11-30")
+    c, _ = client({"meals": [{"mealTypeId": 1, "foodEntries": [{"entryNo": 101, "foodName": "A"}]}]})
+    assert c.day_entries("2026-11-30") == {101: "A"}
+
+
 def test_log_on_day_switches_day_then_posts_full_form():
     c, s = client({"meals": []}, {"entryNo": 301, "meals": [
         {"mealTypeId": 3, "foodEntries": [{"entryNo": 301, "foodName": "Soup"}]}]})
