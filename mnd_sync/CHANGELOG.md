@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Settings: *Test Mealie* and *Test MyNetDiary* now say when nothing is saved yet (press Save first), and the reason for a failed test is written to the add-on log.
+
 ## 0.2.0
 
 - Meal plan: log the next 14 days of your Mealie meal plan to the MyNetDiary diary (off by default), with a Meal plan page, a *Log meal plan now* button and notifications.

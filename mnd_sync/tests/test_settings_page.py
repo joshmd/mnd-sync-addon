@@ -59,13 +59,15 @@ class NoNotes:
         pass
 
 
-def make(tmp_path, **kw):
+def make(tmp_path, saved=True, **kw):
+    if saved:  # the test buttons only test what is saved
+        CredentialStore(tmp_path / "credentials.json").save(**SECRETS)
     conns = FakeConns(**kw)
     return TestClient(create_app(tmp_path, connections=conns, notifier=NoNotes())), conns
 
 
 def test_settings_page_never_shows_secrets(tmp_path):
-    c, _ = make(tmp_path)
+    c, _ = make(tmp_path, saved=False)
     assert "<em>saved</em>" not in c.get("/settings").text  # the auto-sync note also says "saved"
     r = c.post("/settings", data={**SECRETS, "mealie_url": "http://m:9000"})
     assert r.status_code == 200
@@ -194,3 +196,19 @@ def test_notify_service_field(tmp_path):
     assert "Nothing was saved" in r.text and store.get_setting("notify_service") == "mobile_app_my_phone"
     client.post("/settings", data={"notify_service": ""})
     assert store.get_setting("notify_service") is None
+
+
+def test_test_buttons_say_when_nothing_is_saved(tmp_path):
+    c, conns = make(tmp_path, saved=False)
+    for path, name in (("/settings/test-mealie", "Mealie"), ("/settings/test-mnd", "MyNetDiary")):
+        r = c.post(path)
+        assert f"{name}: nothing saved yet" in r.text and "press Save first" in r.text
+    assert conns.created == []
+
+
+def test_test_failure_reason_is_logged_without_secrets(tmp_path, caplog):
+    c, _ = make(tmp_path, mnd_ok=False, mealie_ok=False)
+    c.post("/settings/test-mealie"), c.post("/settings/test-mnd")
+    logged = caplog.text
+    assert "Mealie test failed (MealieError)" in logged and "MyNetDiary test failed (MndAuthError)" in logged
+    assert "leak" not in logged and "rejected the API token" not in logged

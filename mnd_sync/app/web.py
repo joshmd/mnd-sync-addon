@@ -387,28 +387,32 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
 
     @app.post("/settings/test-mealie")
     def test_mealie(request: Request):
+        if not creds.has("mealie_token"):
+            return settings_page(request, "Mealie: nothing saved yet. Fill in the form and press Save first, then test.")
         try:
             info = conns.mealie.client().check()
             message = f"Mealie OK: {info['user']} on {info['version']}."
-        except MealieError:  # text can hold URLs, so it is never shown
-            message = "Mealie failed: check the URL and token (is Mealie reachable?)."
-        except Exception as e:  # message stays generic: exception text can carry URLs
-            message = f"Mealie failed ({type(e).__name__})."
+        except Exception as e:  # text can hold URLs or tokens: type and status only, in the log too
+            log.warning("Mealie test failed (%s)", describe(e))
+            message = ("Mealie failed: check the URL and token (is Mealie reachable?)." if isinstance(e, MealieError)
+                       else f"Mealie failed ({type(e).__name__}).")
         record_ok("mealie_ok", message.startswith("Mealie OK"))
         return settings_page(request, message)
 
     @app.post("/settings/test-mnd")
     def test_mnd(request: Request):
+        if not (creds.has("mnd_email") and creds.has("mnd_password")) and not creds.has("mnd_jsessionid"):
+            return settings_page(request, "MyNetDiary: nothing saved yet. Fill in the form and press Save first, then test.")
         try:
             try:
                 conns.mnd.client().existing_recipes()
             except MndAuthError:  # session may just have expired
                 conns.mnd.relogin().existing_recipes()
             message = "MyNetDiary OK."
-        except MndAuthError:
-            message = "MyNetDiary failed: login rejected, check the email, password or JSESSIONID."
-        except Exception as e:
-            message = f"MyNetDiary failed ({type(e).__name__})."
+        except Exception as e:  # text can hold URLs or tokens: type and status only, in the log too
+            log.warning("MyNetDiary test failed (%s)", describe(e))
+            message = ("MyNetDiary failed: login rejected, check the email, password or JSESSIONID."
+                       if isinstance(e, MndAuthError) else f"MyNetDiary failed ({type(e).__name__}).")
         record_ok("mnd_ok", message == "MyNetDiary OK.")
         return settings_page(request, message)
 
