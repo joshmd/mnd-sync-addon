@@ -18,6 +18,7 @@ class FakeDiary:
         self.names = names or {}
         self.logs = []  # (food_id, day, meal, amount)
         self.fail_foods, self.auth_failures, self.relogins = set(), 0, 0
+        self.save_then_fail = set()
 
     def client(self):
         return self
@@ -40,6 +41,9 @@ class FakeDiary:
             n += 1
         name = self.names.get(food_id, f"Food {food_id}")
         entries[n] = name
+        if food_id in self.save_then_fail:  # saved server-side, but the reply had no entryNo
+            self.save_then_fail.discard(food_id)
+            raise MndRequestError("returned no entryNo")
         return n, name
 
     def day_entries(self, day):
@@ -216,3 +220,49 @@ def test_service_log_meal_plan_relogs_on_auth_error(store, mnd):
     svc = SyncService(store, mnd, FakeMealie([item(1, "2026-11-24")]))
     assert svc.log_meal_plan(TODAY)["logged"] == 1
     assert mnd.all() == [("2026-11-24", 301, "Smoothie")] and mnd.relogins == 1
+
+
+def test_saved_but_no_entry_no_is_adopted(store, mnd):
+    mealie = FakeMealie([item(1, "2026-11-24")])
+    mnd.save_then_fail = {"F1"}
+    assert sync_plan(store, mnd, mealie, TODAY) == dict(ZERO, logged=1)
+    row = store.get_plan_entry(1)
+    assert (row["state"], row["entry_no"], row["food_name"], row["food_id"], row["mnd_day"]) \
+        == ("logged", 301, "Smoothie", "F1", "2026-11-24")
+    assert mnd.all() == [("2026-11-24", 301, "Smoothie")]
+    assert sync_plan(store, mnd, mealie, TODAY) == ZERO and len(mnd.all()) == 1
+
+
+def test_item_outside_window_is_ignored(store, mnd):
+    mealie = FakeMealie([item(1, "2026-11-24")])
+    sync_plan(store, mnd, mealie, TODAY)
+    mealie.items = [item(1, "2026-11-24"), item(2, "2026-11-22"), item(3, "2026-12-07")]
+    assert sync_plan(store, mnd, mealie, TODAY) == ZERO
+    assert mnd.all() == [("2026-11-24", 301, "Smoothie")]
+    assert store.get_plan_entry(2) is None and store.get_plan_entry(3) is None
+    # a stored row whose item moved out of the window stays: it is still live, so it is not a removal
+    mealie.items = [item(1, "2026-12-10")]
+    assert sync_plan(store, mnd, mealie, TODAY) == ZERO
+    assert store.get_plan_entry(1)["state"] == "logged" and len(mnd.all()) == 1
+
+
+def test_removed_counts_only_deleted_entries(store, mnd):
+    mealie = FakeMealie([item(1, "2026-11-24"), item(2, "2026-11-25", slug="later")])
+    sync_plan(store, mnd, mealie, TODAY)
+    mnd.days["2026-11-24"].clear()  # the user deleted ours
+    mealie.items = []
+    assert sync_plan(store, mnd, mealie, TODAY) == ZERO
+    assert store.get_plan_entry(1) is None and store.get_plan_entry(2) is None
+
+
+def test_auth_error_mid_move_relogs_without_marking_removed(store, mnd):
+    mealie = FakeMealie([item(1, "2026-11-24")])
+    svc = SyncService(store, mnd, mealie)
+    svc.log_meal_plan(TODAY)
+    mealie.items = [item(1, "2026-11-26")]
+    mnd.auth_failures = 1  # the first log_on_day after the removal
+    svc.log_meal_plan(TODAY)
+    assert mnd.relogins == 1
+    assert mnd.all() == [("2026-11-26", 301, "Smoothie")]
+    row = store.get_plan_entry(1)
+    assert (row["state"], row["mnd_day"], row["entry_no"]) == ("logged", "2026-11-26", 301)

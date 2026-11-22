@@ -30,6 +30,8 @@ def sync_plan(store, mnd, mealie, today: date) -> dict[str, int]:
             for it in items}
     counts = dict.fromkeys(("logged", "moved", "removed", "waiting", "user_removed", "failed"), 0)
     for pid, (day, meal, slug, title) in live.items():
+        if not t <= day <= end:  # outside the window: never log into a frozen day; still live, so not removed
+            continue
         try:
             _sync_item(store, mnd, pid, day, meal, slug, title, t, counts)
         except MndAuthError:
@@ -43,10 +45,9 @@ def sync_plan(store, mnd, mealie, today: date) -> dict[str, int]:
         if row["plan_id"] in live:
             continue
         try:
-            if row["state"] == PLAN_LOGGED:
-                _remove_ours(mnd, row)  # False: the user already deleted it
+            # False: the user already deleted it; the row goes either way
+            counts["removed"] += row["state"] == PLAN_LOGGED and _remove_ours(mnd, row)
             store.delete_plan_entry(row["plan_id"])
-            counts["removed"] += 1
         except MndAuthError:
             raise
         except Exception as e:  # noqa: BLE001
@@ -77,6 +78,26 @@ def _sync_item(store, mnd, pid, day, meal, slug, title, t, counts) -> None:
         store.put_plan_entry(pid, **plan, state=PLAN_WAITING, entry_no=None)
         counts["waiting"] += not row or row["state"] != PLAN_WAITING
     else:
-        n, name = mnd.log_on_day(food, day, meal, "1 serving", dry_run=False)
+        n, name = _log(mnd, food, day, meal)
         store.put_plan_entry(pid, **plan, state=PLAN_LOGGED, mnd_day=day, entry_no=n, food_name=name, food_id=food)
         counts["logged"] += 1
+
+
+def _log(mnd, food, day, meal):
+    """Log one serving; if the save went through but its reply was lost, adopt the one new entry."""
+    before = mnd.day_entries(day)
+    try:
+        return mnd.log_on_day(food, day, meal, "1 serving", dry_run=False)
+    except MndAuthError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        try:
+            after = mnd.day_entries(day)
+        except Exception:  # noqa: BLE001
+            raise e from None
+        new = set(after) - set(before)
+        if len(new) != 1:
+            raise
+        n = new.pop()
+        log.warning("diary entry %s adopted after %s", n, describe(e))
+        return n, after[n]
