@@ -236,6 +236,13 @@ class SyncService:
             self._retry(lambda c: c.retire_food(row["mnd_food_id"]))
             self._put(slug, mnd_food_id=None, saved_at=None, saved_mealie_updated=None)
 
+    # ----- meal plan --------------------------------------------------------
+
+    def log_meal_plan(self, today) -> dict:
+        from app.mealplan import sync_plan  # mealplan imports this module
+        with self._guard():
+            return self._retry(lambda c: sync_plan(self.store, c, self.mealie.client(), today))
+
     # ----- sync -------------------------------------------------------------
 
     def sync(self, slugs=None, *, force=False, trigger="manual") -> dict:
