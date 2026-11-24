@@ -136,6 +136,16 @@ def test_last_refresh_result_stays_on_the_page(tmp_path):
     assert "Last refresh" in t and "0 new, 33 linked" in t
 
 
+def test_recipe_detail_with_text_grams_and_calories(tmp_path):
+    c, _ = make(tmp_path)  # MyNetDiary sends these as text, e.g. "120" and "438" or "438cals"
+    row = c.app.state.store.get_recipe("a")
+    m = json.loads(row["mapping_json"])
+    m["resolutions"] = [res("flour", "120", "438cals"), res("salt", "", None)]
+    c.app.state.store.upsert_recipe("a", "Recipe a", "t", json.dumps(m), "ready")
+    r = c.get("/recipes/a", headers=HEADERS)
+    assert r.status_code == 200 and "438" in r.text and "365" in r.text
+
+
 def test_sync_all_ready_only_from_its_own_button(tmp_path):
     c, svc = make(tmp_path)
     page = c.get("/", headers=HEADERS).text

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- Fix: a recipe's page gave "Internal Server Error" (MyNetDiary sends grams and calories as text).
+
 ## 0.2.2
 
 - Recipes: the last *Refresh from Mealie* result (new, linked, changed…) stays on the page, so it isn't lost when a long refresh finishes after you have moved on. While a refresh runs, the page says so.

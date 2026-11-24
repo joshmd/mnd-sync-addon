@@ -125,6 +125,7 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
             raise HTTPException(404, "No such recipe")
         m = mapping(row)
         for r in m["resolutions"] if m else []:  # kcal per 100 g, as the CLI report shows it
+            r["grams"], r["calories"] = number(r["grams"]), number(r["calories"])  # MyNetDiary sends text, e.g. "438cals"
             r["per100"] = r["calories"] / r["grams"] * 100 if r["calories"] is not None and (r["grams"] or 0) >= 5 else None
         return templates.TemplateResponse(request, "recipe.html", {"row": row, "m": m, "msg": msg,
                                                                 "ask_forget": ask_forget, "ask_update": ask_update,
