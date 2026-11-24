@@ -143,16 +143,27 @@ def test_removed_from_plan_deletes_entry(store, mnd):
     assert mnd.all() == [] and store.get_plan_entry(1) is None
 
 
-def test_user_deleted_entry_is_never_readded(store, mnd):
+def test_user_deleted_entry_is_readded_when_moved(store, mnd):
     mealie = FakeMealie([item(1, "2026-11-24")])
     sync_plan(store, mnd, mealie, TODAY)
     mnd.days["2026-11-24"].clear()  # the user deletes it
-    mealie.items = [item(1, "2026-11-26")]
+    assert sync_plan(store, mnd, mealie, TODAY) == ZERO and mnd.all() == []  # unchanged in Mealie: not re-added
+    mealie.items = [item(1, "2026-11-26")]  # then moves it in Mealie: a fresh choice
+    assert sync_plan(store, mnd, mealie, TODAY) == dict(ZERO, logged=1)
+    assert mnd.all() == [("2026-11-26", 301, "Smoothie")] and store.get_plan_entry(1)["state"] == "logged"
+
+
+def test_user_deleted_entry_stays_deleted_on_new_recipe_version(store, mnd):
+    mealie = FakeMealie([item(1, "2026-11-24")])
+    sync_plan(store, mnd, mealie, TODAY)
+    mnd.days["2026-11-24"].clear()  # the user deletes it
+    store.upsert_recipe("smoothie", "Smoothie", "2", None, "saved", mnd_food_id="F9")  # Update in MyNetDiary
     assert sync_plan(store, mnd, mealie, TODAY) == dict(ZERO, user_removed=1)
     assert store.get_plan_entry(1)["state"] == "removed_by_user" and mnd.all() == []
     assert sync_plan(store, mnd, mealie, TODAY) == ZERO
-    mealie.items = [item(1, "2026-11-27")]
-    assert sync_plan(store, mnd, mealie, TODAY) == ZERO and mnd.all() == []
+    mealie.items = [item(1, "2026-11-27")]  # a later move brings it back
+    assert sync_plan(store, mnd, mealie, TODAY) == dict(ZERO, logged=1)
+    assert mnd.all() == [("2026-11-27", 301, "Smoothie")]
 
 
 def test_renumbered_entry_is_never_deleted(store, mnd):

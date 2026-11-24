@@ -65,7 +65,7 @@ are only a note are not logged. A planned recipe that has not synced yet waits
 Try it first: leave the setting off and press *Log meal plan now* on the Meal
 plan page for a real week, then check the diary. Only then turn it on.
 
-- An entry you delete in MyNetDiary is not added again; your deletion wins.
+- An entry you delete in MyNetDiary is not added again, unless you then move that meal to another day or meal in Mealie: a move logs it on the new day.
 - If you move or remove a plan entry in Mealie, the diary follows.
 - Past days are never touched.
 

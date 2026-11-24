@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+- Meal plan: a meal you deleted in MyNetDiary is logged again if you move it to another day or meal in Mealie (a move is a fresh choice). Left unmoved, it stays deleted.
+
 ## 0.2.3
 
 - Fix: a recipe's page gave "Internal Server Error" (MyNetDiary sends grams and calories as text).

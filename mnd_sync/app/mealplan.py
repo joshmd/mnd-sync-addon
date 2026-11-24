@@ -58,20 +58,25 @@ def sync_plan(store, mnd, mealie, today: date) -> dict[str, int]:
 
 def _sync_item(store, mnd, pid, day, meal, slug, title, t, counts) -> None:
     row = store.get_plan_entry(pid)
-    if row and (row["state"] == PLAN_USER_REMOVED or (row["state"] == PLAN_LOGGED and row["date"] < t)):
-        return  # the user wins; the past is frozen
+    if row and row["state"] == PLAN_LOGGED and row["date"] < t:
+        return  # the past is frozen
+    if row and row["state"] == PLAN_USER_REMOVED and (row["date"], row["meal"], row["slug"]) == (day, meal, slug):
+        return  # the user deleted it; only moving it in Mealie brings it back
     recipe = store.get_recipe(slug) if slug else None
     food = recipe["mnd_food_id"] if recipe and recipe["status"] in (SAVED, CHANGED) else None
     plan = dict(date=day, meal=meal, slug=slug, title=title)
     if row and row["state"] == PLAN_LOGGED:
         if (row["date"], row["meal"], row["slug"], row["food_id"]) == (day, meal, slug, food):
             return
-        if not _remove_ours(mnd, row):  # a new recipe version (food changed) is a move too
+        moved = (row["date"], row["meal"], row["slug"]) != (day, meal, slug)  # else a new recipe version
+        if _remove_ours(mnd, row):
+            counts["moved"] += 1
+        elif not moved:  # the user deleted it: a new recipe version alone does not bring it back
             store.put_plan_entry(pid, state=PLAN_USER_REMOVED)
             counts["user_removed"] += 1
             return
+        # deleted by the user, then moved in Mealie: a fresh choice, logged on the new day below
         store.put_plan_entry(pid, state=PLAN_FAILED, entry_no=None)  # gone now: a rerun must not look for it
-        counts["moved"] += 1
     if slug is None:
         store.put_plan_entry(pid, **plan, state=PLAN_NOTE, entry_no=None)
     elif not food:
