@@ -23,7 +23,7 @@ CLI and tests from `mnd_sync/`. Paths below are inside `mnd_sync/`.
 ```
 app/             # add-on web UI (FastAPI, served via HA ingress on :8099)
 mynetdiary/      # the MND web API client
-  client.py      #   MndClient: auth, search, log, delete, recipe, custom food
+  client.py      #   MndClient: search, log, delete, recipe update/retire
   models.py      #   FoodSearchResult, FoodEntry, Ingredient, Recipe, SavedFood
   errors.py
 mealie/          # minimal Mealie REST client + recipe model
@@ -92,7 +92,8 @@ python cli.py alias list
 
 ## Tests
 ```
-python -m pytest tests/ -q      # or: python tests/test_models.py
+pip install -r requirements-dev.txt
+python -m pytest tests/ -q
 ```
 
 ## Amount verification

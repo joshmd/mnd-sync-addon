@@ -117,7 +117,7 @@ session is accepted by the web `mui*.do` endpoints.
 - Cookies set: `JSESSIONID`, `rememberMe`, `AWSALB`, `AWSALBCORS`.
 - Using the same cookie jar, `muiGetRecipes.do` returns account data
   (`userType`/`securityToken` present) — the session is web-valid.
-- Reference implementation: `scripts/login_spike.py` (`mobile_login`).
+- Reference implementation: `mynetdiary/login.py` (`mobile_login`).
 - Device ids should be persisted per installation so repeated logins register
   one device.
 

@@ -81,11 +81,14 @@ def tick(service, store, notifier, now: datetime, *, recipes: bool = True, plan:
     store.set_setting("last_outage", None)
     result = {"saved": len(saved)}
     if plan:
-        added = planned["logged"] - planned["moved"]
+        moved = planned["moved"]
+        added = max(planned["logged"] - moved, 0)  # a move whose meal became a note re-logs nothing
         result["planned"] = planned["logged"]
-        if added or planned["moved"]:
-            moved = f", {planned['moved']} moved" if planned["moved"] else ""
-            notifier.send(TITLE, f"{_plural(added, 'planned meal')} added to the MyNetDiary diary{moved}")
+        if added:
+            notifier.send(TITLE, f"{_plural(added, 'planned meal')} added to the MyNetDiary diary"
+                                 + (f", {moved} moved" if moved else ""))
+        elif moved:
+            notifier.send(TITLE, f"{_plural(moved, 'planned meal')} moved in the MyNetDiary diary")
         if planned["waiting"]:
             n = planned["waiting"]
             notifier.send(TITLE, f"{_plural(n, 'planned meal')} {'waits' if n == 1 else 'wait'} for their recipe to sync: see Review")

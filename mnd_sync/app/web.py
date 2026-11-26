@@ -270,7 +270,7 @@ def create_app(data_dir: Path, connections=None, service=None, notifier=None) ->
 
         def search(client):
             out = []
-            for hit in client.search_foods(query, limit=20):
+            for hit in client.search_foods(query, limit=10):  # one kcal lookup per hit
                 try:  # kcal per 100 g, as the CLI's search --per-100g computes it
                     raw = client.get_food_entry(hit.food_id, "100 g").raw
                     g, k = grams_of(raw), number(raw.get("calories"))

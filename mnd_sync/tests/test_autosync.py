@@ -248,6 +248,13 @@ def test_plan_moves_are_not_counted_as_added(store):
     assert [m for _, m in notes.sent] == ["1 planned meal added to the MyNetDiary diary, 2 moved"]
 
 
+def test_move_without_relog_is_not_a_negative_add(store):
+    svc, notes = FakeService(store), Notes()
+    svc.plan_result = {**svc.plan_result, "logged": 0, "moved": 1}  # a logged meal became a note in Mealie
+    tick(svc, store, notes, NOW, recipes=False, plan=True)
+    assert [m for _, m in notes.sent] == ["1 planned meal moved in the MyNetDiary diary"]
+
+
 def test_recipes_notified_even_when_plan_fails(store):
     put(store, "a")
     svc, notes = FakeService(store), Notes()

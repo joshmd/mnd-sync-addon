@@ -3,5 +3,3 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-pyyaml
-httpx

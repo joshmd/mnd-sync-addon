@@ -4,9 +4,9 @@ Auth is by web session cookie (JSESSIONID). Every write method honours
 ``dry_run``: when true (the client default) it builds and returns the exact
 request that WOULD be sent, without sending it.
 
-Endpoint shapes are verified against two HAR captures. Programmatic login is
-not captured yet; supply an existing JSESSIONID via ``from_session_id`` or the
-``MND_JSESSIONID`` env var.
+Endpoint shapes are verified against HAR captures. Log in with
+``mynetdiary.login.mobile_login`` on a requests session, or supply an existing
+JSESSIONID via ``from_session_id`` or the ``MND_JSESSIONID`` env var.
 """
 
 from __future__ import annotations
@@ -66,12 +66,6 @@ class MndClient:
             )
         return cls.from_session_id(sid, **kwargs)
 
-    def login(self, logon_name: str, password: str) -> None:
-        """TODO: web login to obtain a JSESSIONID (not captured yet)."""
-        raise NotImplementedError(
-            "Programmatic web login isn't captured yet; use from_session_id()."
-        )
-
     # ----- low-level request helper --------------------------------------
 
     def _request(self, method: str, endpoint: str, **kwargs) -> Any:
@@ -126,11 +120,6 @@ class MndClient:
             _raise_if_error("muiGetFoodEntry.do", data)
         return FoodEntry.from_response(data)
 
-    def calculate_entry_update(self, food_id: str, amount: str) -> Any:
-        """POST /muiCalculateFoodEntryUpdate.do — recompute nutrition for amount."""
-        body = {"foodId": food_id, "amountInputString": amount}
-        return self._request("POST", "muiCalculateFoodEntryUpdate.do", json=body)
-
     def list_recipes(self) -> Any:
         """GET /muiGetRecipes.do — raw response (recipes under 'foods')."""
         return self._request("GET", "muiGetRecipes.do")
@@ -150,10 +139,6 @@ class MndClient:
             if name and fid:
                 out[name] = str(fid)
         return out
-
-    def load_recipe_scaffold(self, meal_type_id: int = 3) -> Any:
-        """GET /muiLoadRecipe.do — empty editor scaffold (image list etc.)."""
-        return self._request("GET", "muiLoadRecipe.do", params={"mealTypeId": meal_type_id})
 
     def get_meals(self, day: Optional[str] = None) -> Any:
         """GET /muiGetMeals.do — a day's meals, each with foodEntries[].
@@ -326,15 +311,6 @@ class MndClient:
         if not (isinstance(data, dict) and data.get("success") is True):
             raise MndRequestError("muiRetireMyFood.do did not report success",
                                   endpoint="muiRetireMyFood.do", payload=str(data)[:500])
-
-    def save_custom_food(self, custom_food: dict[str, Any], *,
-                         dry_run: Optional[bool] = None) -> Any:
-        """POST /muiSaveCustomFood.do  body {"customFood": {<NUTR>: {...}, ...}}.
-
-        TODO: model the customFood nutrient map as a builder once needed.
-        """
-        body = {"customFood": custom_food}
-        return self._maybe_send("POST", "muiSaveCustomFood.do", body, dry_run)
 
     # ----- high-level: build a recipe from (query, amount) pairs ----------
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6
+
+- Meal plan notification never shows a negative count ("1 planned meal moved" instead of "-1 added").
+- Food search on Review shows 10 results, about twice as fast.
+- Smaller add-on: unused MyNetDiary calls, the finished live-check scripts and test-only packages removed.
+
 ## 0.2.5
 
 - Log: at start, whether the Supervisor token and time zone reached the add-on; one line per notification sent (no message text), and a warning when one can't be sent.
