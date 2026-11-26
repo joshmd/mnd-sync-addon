@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5
+
+- Log: at start, whether the Supervisor token and time zone reached the add-on; one line per notification sent (no message text), and a warning when one can't be sent.
+
 ## 0.2.4
 
 - Meal plan: a meal you deleted in MyNetDiary is logged again if you move it to another day or meal in Mealie (a move is a fresh choice). Left unmoved, it stays deleted.

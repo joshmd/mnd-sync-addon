@@ -19,11 +19,20 @@ class Recorder:
             raise RuntimeError("boom tok-secret")
 
 
-def test_no_token_is_noop(monkeypatch):
+def test_no_token_is_noop(monkeypatch, caplog):
     rec = Recorder()
     monkeypatch.setattr(notify.requests, "post", rec)
     Notifier(None, "mobile_app_x").send("T", "M")
-    assert rec.calls == []
+    assert rec.calls == [] and "no Supervisor token" in caplog.text
+
+
+def test_sent_notification_is_logged_without_text(monkeypatch, caplog):
+    caplog.set_level("INFO", logger="mnd_sync")
+    ok = type("Ok", (), {"raise_for_status": lambda self: None})()
+    monkeypatch.setattr(notify.requests, "post", lambda url, **kw: ok)
+    Notifier("tok-secret", None).send("T", "Soup synced")
+    assert "notification sent via persistent_notification/create" in caplog.text
+    assert "Soup" not in caplog.text and "tok-secret" not in caplog.text
 
 
 def test_sends_persistent_and_notify_service(monkeypatch):
